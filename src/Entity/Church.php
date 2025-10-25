@@ -13,7 +13,6 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\HasLifecycleCallbacks]
 #[Broadcast]
 #[ValidDocument]
-
 class Church
 {
     #[ORM\Id]
@@ -31,11 +30,9 @@ class Church
 
     #[ORM\Column(length: 50)]
     #[Assert\NotBlank(message: "O número do documento é obrigatório")]
-    #[Assert\Choice(choices: ["CPF", "CNPJ"], message: "Escolha CPF ou CNPJ")]
     private ?string $document_number = null;
 
     #[ORM\Column(length: 50)]
-    #[Assert\Positive(message: "O limite de membros deve ser positivo")]
     private ?string $internal_code = null;
 
     #[ORM\Column(length: 20, nullable: true)]
@@ -71,11 +68,14 @@ class Church
     #[ORM\Column]
     private ?\DateTime $updated_at = null;
 
-    /**
-     * @var Collection<int, Member>
-     */
-    #[ORM\OneToMany(targetEntity: Member::class, mappedBy: 'church')]
+    #[ORM\OneToMany(targetEntity: Member::class, mappedBy: 'church', cascade: ["persist", "remove"])]
     private Collection $members;
+
+    #[ORM\OneToMany(mappedBy: 'from_church', targetEntity: MemberTransfer::class, cascade: ["persist", "remove"])]
+    private Collection $outgoingTransfers;
+
+    #[ORM\OneToMany(mappedBy: 'to_church', targetEntity: MemberTransfer::class, cascade: ["persist", "remove"])]
+    private Collection $incomingTransfers;
 
     public function __construct()
     {
@@ -97,7 +97,6 @@ class Church
     public function setName(string $name): static
     {
         $this->name = $name;
-
         return $this;
     }
 
@@ -109,7 +108,6 @@ class Church
     public function setDocumentType(string $document_type): static
     {
         $this->document_type = $document_type;
-
         return $this;
     }
 
@@ -121,7 +119,6 @@ class Church
     public function setDocumentNumber(string $document_number): static
     {
         $this->document_number = $document_number;
-
         return $this;
     }
 
@@ -130,10 +127,9 @@ class Church
         return $this->internal_code;
     }
 
-    public function setInternalCode(string $internal_code): static
+    public function setInternalCode(?string $internal_code): static
     {
         $this->internal_code = $internal_code;
-
         return $this;
     }
 
@@ -145,13 +141,42 @@ class Church
     public function setPhone(?string $phone): static
     {
         $this->phone = $phone;
-
         return $this;
     }
 
     public function getAddressStreet(): ?string
     {
         return $this->address_street;
+    }
+
+    public function getAddressNumber(): ?string
+    {
+        return $this->address_number;
+    }
+
+    public function getAddressComplement(): ?string
+    {
+        return $this->address_complement;
+    }
+
+    public function getCity(): ?string
+    {
+        return $this->city;
+    }
+
+    public function getState(): ?string
+    {
+        return $this->state;
+    }
+
+    public function getCep(): ?string
+    {
+        return $this->cep;
+    }
+
+    public function getWebsite(): ?string
+    {
+        return $this->website;
     }
 
     public function setAddressStreet(?string $address_street): static
@@ -161,21 +186,11 @@ class Church
         return $this;
     }
 
-    public function getAddressNumber(): ?string
-    {
-        return $this->address_number;
-    }
-
     public function setAddressNumber(?string $address_number): static
     {
         $this->address_number = $address_number;
 
         return $this;
-    }
-
-    public function getAddressComplement(): ?string
-    {
-        return $this->address_complement;
     }
 
     public function setAddressComplement(?string $address_complement): static
@@ -185,21 +200,11 @@ class Church
         return $this;
     }
 
-    public function getCity(): ?string
-    {
-        return $this->city;
-    }
-
     public function setCity(?string $city): static
     {
         $this->city = $city;
 
         return $this;
-    }
-
-    public function getState(): ?string
-    {
-        return $this->state;
     }
 
     public function setState(?string $state): static
@@ -209,21 +214,11 @@ class Church
         return $this;
     }
 
-    public function getCep(): ?string
-    {
-        return $this->cep;
-    }
-
     public function setCep(?string $cep): static
     {
         $this->cep = $cep;
 
         return $this;
-    }
-
-    public function getWebsite(): ?string
-    {
-        return $this->website;
     }
 
     public function setWebsite(?string $website): static
@@ -241,7 +236,6 @@ class Church
     public function setMembersLimit(?int $members_limit): static
     {
         $this->members_limit = $members_limit;
-
         return $this;
     }
 
@@ -250,23 +244,9 @@ class Church
         return $this->created_at;
     }
 
-    public function setCreatedAt(\DateTime $created_at): static
-    {
-        $this->created_at = $created_at;
-
-        return $this;
-    }
-
     public function getUpdatedAt(): ?\DateTime
     {
         return $this->updated_at;
-    }
-
-    public function setUpdatedAt(\DateTime $updated_at): static
-    {
-        $this->updated_at = $updated_at;
-
-        return $this;
     }
 
     #[ORM\PrePersist]
@@ -282,9 +262,7 @@ class Church
         $this->updated_at = new \DateTime();
     }
 
-    /**
-     * @return Collection<int, Member>
-     */
+    /** @return Collection<int, Member> */
     public function getMembers(): Collection
     {
         return $this->members;
@@ -296,7 +274,6 @@ class Church
             $this->members->add($member);
             $member->setChurch($this);
         }
-
         return $this;
     }
 
@@ -307,13 +284,18 @@ class Church
                 $member->setChurch(null);
             }
         }
-
         return $this;
     }
 
-    #[ORM\OneToMany(mappedBy: 'from_church', targetEntity: MemberTransfer::class)]
-    private Collection $outgoingTransfers;
+    /** @return Collection<int, MemberTransfer> */
+    public function getOutgoingTransfers(): Collection
+    {
+        return $this->outgoingTransfers;
+    }
 
-    #[ORM\OneToMany(mappedBy: 'to_church', targetEntity: MemberTransfer::class)]
-    private Collection $incomingTransfers;
+    /** @return Collection<int, MemberTransfer> */
+    public function getIncomingTransfers(): Collection
+    {
+        return $this->incomingTransfers;
+    }
 }

@@ -5,6 +5,8 @@ namespace App\Entity;
 use App\Repository\MemberRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Symfony\UX\Turbo\Attribute\Broadcast;
 use App\Entity\Church;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -73,6 +75,14 @@ class Member
 
     #[ORM\Column(type: Types::DATETIME_MUTABLE)]
     private ?\DateTime $updated_at = null;
+
+    #[ORM\OneToMany(mappedBy: 'member', targetEntity: MemberTransfer::class)]
+    private Collection $transfers;
+
+    public function __construct()
+    {
+        $this->transfers = new ArrayCollection();
+    }
 
     public function getId(): ?int
     {
@@ -247,12 +257,12 @@ class Member
         return $this;
     }
 
-    public function getUpdateAt(): ?\DateTime
+    public function getUpdatedAt(): ?\DateTime
     {
         return $this->updated_at;
     }
 
-    public function setUpdateAt(\DateTime $updated_at): static
+    public function setUpdatedAt(\DateTime $updated_at): static
     {
         $this->updated_at = $updated_at;
 
@@ -262,21 +272,13 @@ class Member
     #[ORM\PrePersist]
     public function onPrePersist(): void
     {
-        $this->created_at = new \DateTime();
-        $this->updated_at = new \DateTime();
+        $this->setCreatedAt(new \DateTime());
+        $this->setUpdatedAt(new \DateTime());
     }
 
     #[ORM\PreUpdate]
     public function onPreUpdate(): void
     {
-        $this->updated_at = new \DateTime();
-    }
-
-    #[ORM\OneToMany(mappedBy: 'member', targetEntity: MemberTransfer::class)]
-    private Collection $transfers;
-
-    public function __construct()
-    {
-        $this->transfers = new ArrayCollection();
+        $this->setUpdatedAt(new \DateTime());
     }
 }
