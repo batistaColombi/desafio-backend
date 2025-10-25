@@ -20,10 +20,6 @@
 ###< symfony/asset-mapper ###
 
 # Ignore IDE specific files
-src/Entity/MemberTransfer.php
-src/Entity/Member.php
-src/Entity/Church.php
-
 src/Controller/ChurchController.php
 src/Controller/MemberController.php
 src/Controller/MemberTransferController.php
