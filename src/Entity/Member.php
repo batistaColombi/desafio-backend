@@ -39,10 +39,12 @@ class Member
     private ?string $document_number = null;
 
     #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
+    #[Assert\LessThan('today', message: "A data de nascimento não pode ser maior que a data atual")]
     private ?\DateTime $birth_date = null;
 
     #[ORM\Column(length: 180, nullable: true)]
     #[Assert\Email(message: "O e-mail '{{ value }}' não é válido")]
+    #[UniqueEmailInChurch]
     private ?string $email = null;
 
     #[ORM\Column(length: 20, nullable: true)]
