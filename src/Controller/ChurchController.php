@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Church;
+use App\Entity\Member;
 use App\Validator\ChurchValidator;
 use App\DTO\CreateChurchDTO;
 use App\DTO\UpdateChurchDTO;
@@ -378,7 +379,7 @@ class ChurchController extends AbstractController
     #[OA\Get(
         path: "/church/{id}/members",
         summary: "Membros da igreja",
-        description: "Retorna lista de todos os membros de uma igreja específica",
+        description: "Retorna lista paginada de membros de uma igreja específica",
         parameters: [
             new OA\Parameter(
                 name: "id",
@@ -386,6 +387,20 @@ class ChurchController extends AbstractController
                 description: "ID da igreja",
                 required: true,
                 schema: new OA\Schema(type: "integer", example: 1)
+            ),
+            new OA\Parameter(
+                name: "page",
+                in: "query",
+                description: "Número da página",
+                required: false,
+                schema: new OA\Schema(type: "integer", example: 1)
+            ),
+            new OA\Parameter(
+                name: "limit",
+                in: "query",
+                description: "Quantidade de itens por página",
+                required: false,
+                schema: new OA\Schema(type: "integer", example: 10)
             )
         ],
         responses: [
@@ -394,10 +409,21 @@ class ChurchController extends AbstractController
                 description: "Lista de membros da igreja",
                 content: new OA\JsonContent(
                     properties: [
-                        new OA\Property(property: "church_id", type: "integer", example: 1),
-                        new OA\Property(property: "church_name", type: "string", example: "Igreja Central"),
+                        new OA\Property(property: "pagination", type: "object", properties: [
+                            new OA\Property(property: "current_page", type: "integer", example: 1),
+                            new OA\Property(property: "total_pages", type: "integer", example: 2),
+                            new OA\Property(property: "total_items", type: "integer", example: 15),
+                            new OA\Property(property: "items_per_page", type: "integer", example: 10),
+                            new OA\Property(property: "has_next", type: "boolean", example: true),
+                            new OA\Property(property: "has_previous", type: "boolean", example: false)
+                        ]),
+                        new OA\Property(property: "church", type: "object", properties: [
+                            new OA\Property(property: "id", type: "integer", example: 1),
+                            new OA\Property(property: "name", type: "string", example: "Igreja Central"),
+                            new OA\Property(property: "members_limit", type: "integer", example: 100)
+                        ]),
                         new OA\Property(
-                            property: "members",
+                            property: "data",
                             type: "array",
                             items: new OA\Items(
                                 properties: [
@@ -425,11 +451,24 @@ class ChurchController extends AbstractController
         ],
         tags: ["Igrejas"]
     )]
-    public function members(Church $church): JsonResponse
+    public function members(Church $church, Request $request): JsonResponse
     {
-        $members = $church->getMembers();
-
-        $membersArray = $members->map(fn($member) => [
+        $page = max(1, (int) $request->query->get('page', 1));
+        $limit = max(1, min(100, (int) $request->query->get('limit', 10)));
+        
+        $qb = $this->em->getRepository(Member::class)->createQueryBuilder('m')
+            ->where('m.church = :church')
+            ->setParameter('church', $church)
+            ->orderBy('m.id', 'ASC');
+        
+        $pagination = $this->paginator->paginate(
+            $qb,
+            $page,
+            $limit
+        );
+        
+        $membersArray = $pagination->getItems();
+        $membersData = array_map(fn($member) => [
             'id' => $member->getId(),
             'name' => $member->getName(),
             'document_type' => $member->getDocumentType(),
@@ -447,16 +486,26 @@ class ChurchController extends AbstractController
             ),
             'created_at' => $member->getCreatedAt()?->format('Y-m-d H:i:s'),
             'updated_at' => $member->getUpdatedAt()?->format('Y-m-d H:i:s'),
-        ])->toArray();
+        ], $membersArray);
 
-        return $this->json([
+        $response = [
+            'pagination' => [
+                'current_page' => $pagination->getCurrentPageNumber(),
+                'total_pages' => $pagination->getPageCount(),
+                'total_items' => $pagination->getTotalItemCount(),
+                'items_per_page' => $pagination->getItemNumberPerPage(),
+                'has_next' => $pagination->getCurrentPageNumber() < $pagination->getPageCount(),
+                'has_previous' => $pagination->getCurrentPageNumber() > 1
+            ],
             'church' => [
                 'id' => $church->getId(),
                 'name' => $church->getName(),
                 'members_limit' => $church->getMembersLimit()
             ],
-            'members' => $membersArray
-        ]);
+            'data' => $membersData
+        ];
+
+        return $this->json($response);
     }
 
     private function formatAddress(?string $street, ?string $number, ?string $complement, ?string $city, ?string $state, ?string $cep): ?string
