@@ -4,7 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Member;
 use App\Entity\Church;
-use App\Services\Validator\MemberValidator;
+use App\Validator\MemberValidator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;

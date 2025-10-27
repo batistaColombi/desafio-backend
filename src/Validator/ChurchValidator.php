@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Validator;
+namespace App\Validator;
 
 use App\Entity\Church;
 use App\Entity\Member;

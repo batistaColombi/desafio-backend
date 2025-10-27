@@ -9,7 +9,7 @@ use Symfony\Component\Routing\Annotation\Route;
 use App\Entity\MemberTransfer;
 use App\Entity\Member;
 use App\Entity\Church;
-use App\Services\Validator\MemberTransferValidator;
+use App\Validator\MemberTransferValidator;
 use Doctrine\ORM\EntityManagerInterface;
 use OpenApi\Attributes as OA;
 

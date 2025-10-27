@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Validator;
+namespace App\Validator;
 
 use App\Entity\Member;
 use Doctrine\ORM\EntityManagerInterface;

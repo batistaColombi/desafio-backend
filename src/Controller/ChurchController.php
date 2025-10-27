@@ -3,7 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Church;
-use App\Services\Validator\ChurchValidator;
+use App\Validator\ChurchValidator;
 use App\DTO\CreateChurchDTO;
 use App\DTO\UpdateChurchDTO;
 use App\Service\ChurchDTOService;
