@@ -41,12 +41,18 @@ class MemberTransferValidator
             return;
         }
 
-        $existingMember = $this->em->getRepository(Member::class)->findOneBy([
-            'email' => $member->getEmail(),
-            'church' => $toChurch,
-        ]);
+        $existingMember = $this->em->getRepository(Member::class)
+            ->createQueryBuilder('m')
+            ->where('m.email = :email')
+            ->andWhere('m.church = :church')
+            ->andWhere('m.id != :memberId')
+            ->setParameter('email', $member->getEmail())
+            ->setParameter('church', $toChurch)
+            ->setParameter('memberId', $member->getId() ?? 0)
+            ->getQuery()
+            ->getOneOrNullResult();
 
-        if ($existingMember && $existingMember->getId() !== $member->getId()) {
+        if ($existingMember) {
             throw new BadRequestHttpException(sprintf(
                 'O email "%s" já está em uso por outro membro na igreja destino "%s".',
                 $member->getEmail(),

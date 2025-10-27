@@ -134,22 +134,4 @@ class MemberTransfer
         $this->updated_at = new \DateTimeImmutable();
     }
 
-    public function __construct(private EntityManagerInterface $em)
-    {
-    }
-
-    public function validateTransfer(self $transfer): void
-    {
-        $toChurch = $transfer->getToChurch();
-
-        if (!$toChurch) {
-            throw new BadRequestHttpException('Igreja destino não informada.');
-        }
-
-        $membersCount = $toChurch->getMembers()->count();
-
-        if (null !== $toChurch->getMembersLimit() && $membersCount >= $toChurch->getMembersLimit()) {
-            throw new BadRequestHttpException('A igreja destino atingiu o limite máximo de membros.');
-        }
-    }
 }

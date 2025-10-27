@@ -66,22 +66,23 @@ class ChurchValidator
     {
         if (strlen($cnpj) !== 14) return false;
         if (preg_match('/(\d)\1{13}/', $cnpj)) return false;
-        $lengths = [5, 6];
+        
+        $lengths = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
         $sum = 0;
         for ($i = 0; $i < 12; $i++) {
-            $sum += (int)$cnpj[$i] * $lengths[$i < 4 ? 0 : 1];
-            if ($i >= 4) $lengths[1]--;
+            $sum += (int)$cnpj[$i] * $lengths[$i];
         }
         $rev = $sum % 11;
         $dig1 = ($rev < 2) ? 0 : 11 - $rev;
+        
         $sum = 0;
-        $lengths = [6, 5];
+        $lengths = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
         for ($i = 0; $i < 13; $i++) {
-            $sum += (int)$cnpj[$i] * $lengths[$i < 5 ? 0 : 1];
-            if ($i >= 5) $lengths[1]--;
+            $sum += (int)$cnpj[$i] * $lengths[$i];
         }
         $rev = $sum % 11;
         $dig2 = ($rev < 2) ? 0 : 11 - $rev;
+        
         return $dig1 === (int)$cnpj[12] && $dig2 === (int)$cnpj[13];
     }
 
