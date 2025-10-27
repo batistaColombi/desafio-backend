@@ -3,12 +3,10 @@
 namespace App\Repository;
 
 use App\Entity\Member;
+use App\Entity\Church;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
-/**
- * @extends ServiceEntityRepository<Member>
- */
 class MemberRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -16,28 +14,48 @@ class MemberRepository extends ServiceEntityRepository
         parent::__construct($registry, Member::class);
     }
 
-       /**
-        * @return Member[] Returns an array of Member objects
-        */
-       public function findByExampleField($value): array
-       {
-           return $this->createQueryBuilder('m')
-               ->andWhere('m.exampleField = :val')
-               ->setParameter('val', $value)
-               ->orderBy('m.id', 'ASC')
-               ->setMaxResults(10)
-               ->getQuery()
-               ->getResult()
-           ;
-       }
+    public function findByChurchActive(Church $church): array
+    {
+        return $this->createQueryBuilder('m')
+            ->where('m.church = :church')
+            ->andWhere('m.isDeleted = false')
+            ->setParameter('church', $church)
+            ->orderBy('m.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 
-       public function findOneBySomeField($value): ?Member
-       {
-           return $this->createQueryBuilder('m')
-               ->andWhere('m.exampleField = :val')
-               ->setParameter('val', $value)
-               ->getQuery()
-               ->getOneOrNullResult()
-           ;
-       }
+    public function findByChurchWithDeleted(Church $church): array
+    {
+        return $this->createQueryBuilder('m')
+            ->where('m.church = :church')
+            ->setParameter('church', $church)
+            ->orderBy('m.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function findActiveBySearch(string $search): array
+    {
+        return $this->createQueryBuilder('m')
+            ->where('m.isDeleted = false')
+            ->andWhere('m.name LIKE :search')
+            ->setParameter('search', '%' . $search . '%')
+            ->orderBy('m.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    public function findByChurchActiveWithSearch(Church $church, string $search): array
+    {
+        return $this->createQueryBuilder('m')
+            ->where('m.church = :church')
+            ->andWhere('m.isDeleted = false')
+            ->andWhere('m.name LIKE :search')
+            ->setParameter('church', $church)
+            ->setParameter('search', '%' . $search . '%')
+            ->orderBy('m.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }

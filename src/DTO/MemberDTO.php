@@ -58,7 +58,16 @@ class MemberDTO
         public readonly string $createdAt,
 
         #[OA\Property(description: "Data de atualização", format: "date-time")]
-        public readonly string $updatedAt
+        public readonly string $updatedAt,
+
+        #[OA\Property(description: "Status de exclusão", example: false)]
+        public readonly bool $isDeleted,
+
+        #[OA\Property(description: "Data de exclusão", format: "date-time", example: null)]
+        public readonly ?string $deletedAt,
+
+        #[OA\Property(description: "Usuário que excluiu", example: null)]
+        public readonly ?string $deletedBy
     ) {}
 
     public static function fromEntity(Member $member): self
@@ -81,8 +90,11 @@ class MemberDTO
                 'id' => $member->getChurch()->getId(),
                 'name' => $member->getChurch()->getName()
             ] : null,
-            createdAt: $member->getCreatedAt()->format('Y-m-d H:i:s'),
-            updatedAt: $member->getUpdatedAt()->format('Y-m-d H:i:s')
+            createdAt: $member->getCreatedAt()?->format('Y-m-d H:i:s') ?? '',
+            updatedAt: $member->getUpdatedAt()?->format('Y-m-d H:i:s') ?? '',
+            isDeleted: $member->isDeleted(),
+            deletedAt: $member->getDeletedAt()?->format('Y-m-d H:i:s'),
+            deletedBy: $member->getDeletedBy()
         );
     }
 
@@ -104,7 +116,10 @@ class MemberDTO
             'cep' => $this->cep,
             'church' => $this->church,
             'created_at' => $this->createdAt,
-            'updated_at' => $this->updatedAt
+            'updated_at' => $this->updatedAt,
+            'is_deleted' => $this->isDeleted,
+            'deleted_at' => $this->deletedAt,
+            'deleted_by' => $this->deletedBy
         ];
     }
 }

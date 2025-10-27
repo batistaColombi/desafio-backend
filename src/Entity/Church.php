@@ -262,7 +262,6 @@ class Church
         $this->updated_at = new \DateTime();
     }
 
-    /** @return Collection<int, Member> */
     public function getMembers(): Collection
     {
         return $this->members;
@@ -287,13 +286,11 @@ class Church
         return $this;
     }
 
-    /** @return Collection<int, MemberTransfer> */
     public function getOutgoingTransfers(): Collection
     {
         return $this->outgoingTransfers;
     }
 
-    /** @return Collection<int, MemberTransfer> */
     public function getIncomingTransfers(): Collection
     {
         return $this->incomingTransfers;

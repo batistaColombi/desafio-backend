@@ -8,23 +8,27 @@ use App\Validator\ChurchValidator;
 use App\DTO\CreateChurchDTO;
 use App\DTO\UpdateChurchDTO;
 use App\Service\ChurchDTOService;
+use App\Service\AuditService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Routing\Annotation\Route;
 use OpenApi\Attributes as OA;
 use Knp\Component\Pager\PaginatorInterface;
 
 #[Route('/church')]
+#[IsGranted('ROLE_ADMIN')]
 class ChurchController extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $em, 
         private ChurchValidator $validator,
         private PaginatorInterface $paginator,
-        private ChurchDTOService $dtoService
+        private ChurchDTOService $dtoService,
+        private AuditService $auditService
     )
     {
     }
@@ -33,7 +37,15 @@ class ChurchController extends AbstractController
     #[OA\Post(
         path: "/church/create",
         summary: "Criar igreja",
-        description: "Cria uma nova igreja com validações de documento e código interno",
+        description: "Cria uma nova igreja com validações de documento e código interno
+
+**Exemplo de curl:**
+```bash
+curl -X POST 'http://localhost:8000/church/create' \\
+  -H 'Authorization: Bearer SEU_TOKEN' \\
+  -H 'Content-Type: application/x-www-form-urlencoded' \\
+  -d 'name=Igreja Nova&document_type=CNPJ&document_number=11222333000181&internal_code=IC001&phone=(11) 99999-1111&address_street=Rua das Flores&address_number=123&city=São Paulo&state=SP&cep=01234-567&members_limit=100'
+```",
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\MediaType(
@@ -42,20 +54,20 @@ class ChurchController extends AbstractController
                     type: "object",
                     properties: [
                         new OA\Property(property: "name", type: "string", description: "Nome da igreja (ex: Igreja Central)"),
-                        new OA\Property(property: "documentType", type: "string", description: "Tipo do documento", enum: ["CPF", "CNPJ"]),
-                        new OA\Property(property: "documentNumber", type: "string", description: "Número do documento (ex: 11222333000181)"),
-                        new OA\Property(property: "internalCode", type: "string", description: "Código interno único (ex: IC001)"),
+                        new OA\Property(property: "document_type", type: "string", description: "Tipo do documento", enum: ["CPF", "CNPJ"]),
+                        new OA\Property(property: "document_number", type: "string", description: "Número do documento (ex: 11222333000181)"),
+                        new OA\Property(property: "internal_code", type: "string", description: "Código interno único (ex: IC001)"),
                         new OA\Property(property: "phone", type: "string", description: "Telefone (ex: (11) 99999-1111)"),
-                        new OA\Property(property: "addressStreet", type: "string", description: "Logradouro (ex: Rua das Flores)"),
-                        new OA\Property(property: "addressNumber", type: "string", description: "Número (ex: 123)"),
-                        new OA\Property(property: "addressComplement", type: "string", description: "Complemento (ex: Sala 1)"),
+                        new OA\Property(property: "address_street", type: "string", description: "Logradouro (ex: Rua das Flores)"),
+                        new OA\Property(property: "address_number", type: "string", description: "Número (ex: 123)"),
+                        new OA\Property(property: "address_complement", type: "string", description: "Complemento (ex: Sala 1)"),
                         new OA\Property(property: "city", type: "string", description: "Cidade (ex: São Paulo)"),
                         new OA\Property(property: "state", type: "string", description: "Estado (ex: SP)"),
                         new OA\Property(property: "cep", type: "string", description: "CEP (ex: 01234-567)"),
                         new OA\Property(property: "website", type: "string", description: "Website (ex: https://igrejacentral.com)"),
-                        new OA\Property(property: "membersLimit", type: "integer", description: "Limite de membros (ex: 100)")
+                        new OA\Property(property: "members_limit", type: "integer", description: "Limite de membros (ex: 100)")
                     ],
-                    required: ["name", "documentType", "documentNumber", "internalCode", "phone", "addressStreet", "addressNumber", "city", "state", "cep", "membersLimit"]
+                    required: ["name", "document_type", "document_number", "internal_code", "phone", "address_street", "address_number", "city", "state", "cep", "members_limit"]
                 )
             )
         ),
@@ -153,7 +165,15 @@ class ChurchController extends AbstractController
     #[OA\Put(
         path: "/church/{id}/update",
         summary: "Atualizar igreja",
-        description: "Atualiza os dados de uma igreja existente",
+        description: "Atualiza os dados de uma igreja existente
+
+**Exemplo de curl:**
+```bash
+curl -X PUT 'http://localhost:8000/church/1/update' \\
+  -H 'Authorization: Bearer SEU_TOKEN' \\
+  -H 'Content-Type: application/x-www-form-urlencoded' \\
+  -d 'name=Igreja Atualizada&phone=(11) 88888-8888&members_limit=200'
+```",
         parameters: [
             new OA\Parameter(
                 name: "id",
@@ -165,9 +185,35 @@ class ChurchController extends AbstractController
         ],
         requestBody: new OA\RequestBody(
             required: true,
-            content: new OA\JsonContent(
-                type: UpdateChurchDTO::class
-            )
+            content: [
+                new OA\MediaType(
+                    mediaType: "application/x-www-form-urlencoded",
+                    schema: new OA\Schema(
+                        type: "object",
+                        properties: [
+                            new OA\Property(property: "name", type: "string", description: "Nome da igreja"),
+                            new OA\Property(property: "document_type", type: "string", description: "Tipo do documento", enum: ["CPF", "CNPJ"]),
+                            new OA\Property(property: "document_number", type: "string", description: "Número do documento"),
+                            new OA\Property(property: "internal_code", type: "string", description: "Código interno único"),
+                            new OA\Property(property: "phone", type: "string", description: "Telefone"),
+                            new OA\Property(property: "address_street", type: "string", description: "Logradouro"),
+                            new OA\Property(property: "address_number", type: "string", description: "Número"),
+                            new OA\Property(property: "address_complement", type: "string", description: "Complemento"),
+                            new OA\Property(property: "city", type: "string", description: "Cidade"),
+                            new OA\Property(property: "state", type: "string", description: "Estado"),
+                            new OA\Property(property: "cep", type: "string", description: "CEP"),
+                            new OA\Property(property: "website", type: "string", description: "Website"),
+                            new OA\Property(property: "members_limit", type: "integer", description: "Limite de membros")
+                        ]
+                    )
+                ),
+                new OA\MediaType(
+                    mediaType: "application/json",
+                    schema: new OA\Schema(
+                        type: UpdateChurchDTO::class
+                    )
+                )
+            ]
         ),
         responses: [
             new OA\Response(
@@ -458,6 +504,7 @@ class ChurchController extends AbstractController
         
         $qb = $this->em->getRepository(Member::class)->createQueryBuilder('m')
             ->where('m.church = :church')
+            ->andWhere('m.isDeleted = false') // Filtrar apenas membros ativos
             ->setParameter('church', $church)
             ->orderBy('m.id', 'ASC');
         

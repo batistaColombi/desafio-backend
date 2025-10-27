@@ -10,20 +10,24 @@ use App\DTO\UpdateMemberDTO;
 use App\DTO\MemberDTO;
 use App\DTO\MemberListDTO;
 use App\Service\MemberDTOService;
+use App\Service\SoftDeleteService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Routing\Annotation\Route;
 use OpenApi\Attributes as OA;
 
 #[Route('/member')]
+#[IsGranted('ROLE_ADMIN')]
 class MemberController extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $em, 
         private MemberValidator $validator,
-        private MemberDTOService $dtoService
+        private MemberDTOService $dtoService,
+        private SoftDeleteService $softDeleteService
     )
     {
     }
@@ -32,7 +36,15 @@ class MemberController extends AbstractController
     #[OA\Post(
         path: "/member/create",
         summary: "Criar membro",
-        description: "Cria um novo membro com validações de documento e email único por igreja",
+        description: "Cria um novo membro com validações de documento e email único por igreja
+
+**Exemplo de curl:**
+```bash
+curl -X POST 'http://localhost:8000/member/create' \\
+  -H 'Authorization: Bearer SEU_TOKEN' \\
+  -H 'Content-Type: application/x-www-form-urlencoded' \\
+  -d 'name=João Silva&document_type=CPF&document_number=11144477735&email=joao@email.com&phone=(11) 99999-3333&birth_date=1990-05-15&address_street=Rua das Palmeiras&address_number=456&city=São Paulo&state=SP&cep=01234-567&church_id=1'
+```",
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\MediaType(
@@ -41,20 +53,20 @@ class MemberController extends AbstractController
                     type: "object",
                     properties: [
                         new OA\Property(property: "name", type: "string", description: "Nome do membro (ex: João Silva)"),
-                        new OA\Property(property: "documentType", type: "string", description: "Tipo do documento", enum: ["CPF", "CNPJ"]),
-                        new OA\Property(property: "documentNumber", type: "string", description: "Número do documento (ex: 11144477735)"),
+                        new OA\Property(property: "document_type", type: "string", description: "Tipo do documento", enum: ["CPF", "CNPJ"]),
+                        new OA\Property(property: "document_number", type: "string", description: "Número do documento (ex: 11144477735)"),
                         new OA\Property(property: "email", type: "string", description: "Email único na igreja (ex: joao@email.com)"),
                         new OA\Property(property: "phone", type: "string", description: "Telefone (ex: (11) 99999-3333)"),
-                        new OA\Property(property: "birthDate", type: "string", description: "Data de nascimento (ex: 1990-05-15)"),
-                        new OA\Property(property: "addressStreet", type: "string", description: "Logradouro (ex: Rua das Palmeiras)"),
-                        new OA\Property(property: "addressNumber", type: "string", description: "Número (ex: 456)"),
-                        new OA\Property(property: "addressComplement", type: "string", description: "Complemento (ex: Apt 2)"),
+                        new OA\Property(property: "birth_date", type: "string", description: "Data de nascimento (ex: 1990-05-15)"),
+                        new OA\Property(property: "address_street", type: "string", description: "Logradouro (ex: Rua das Palmeiras)"),
+                        new OA\Property(property: "address_number", type: "string", description: "Número (ex: 456)"),
+                        new OA\Property(property: "address_complement", type: "string", description: "Complemento (ex: Apt 2)"),
                         new OA\Property(property: "city", type: "string", description: "Cidade (ex: São Paulo)"),
                         new OA\Property(property: "state", type: "string", description: "Estado (ex: SP)"),
                         new OA\Property(property: "cep", type: "string", description: "CEP (ex: 01234-567)"),
-                        new OA\Property(property: "churchId", type: "integer", description: "ID da igreja (ex: 1)")
+                        new OA\Property(property: "church_id", type: "integer", description: "ID da igreja (ex: 1)")
                     ],
-                    required: ["name", "documentType", "documentNumber", "email", "phone", "birthDate", "addressStreet", "addressNumber", "city", "state", "cep", "churchId"]
+                    required: ["name", "document_type", "document_number", "email", "phone", "birth_date", "address_street", "address_number", "city", "state", "cep", "church_id"]
                 )
             )
         ),
@@ -161,7 +173,15 @@ class MemberController extends AbstractController
     #[OA\Put(
         path: "/member/{id}",
         summary: "Atualizar membro",
-        description: "Atualiza os dados de um membro existente",
+        description: "Atualiza os dados de um membro existente
+
+**Exemplo de curl:**
+```bash
+curl -X PUT 'http://localhost:8000/member/1' \\
+  -H 'Authorization: Bearer SEU_TOKEN' \\
+  -H 'Content-Type: application/x-www-form-urlencoded' \\
+  -d 'name=João Silva Atualizado&phone=(11) 88888-8888&email=joao.novo@email.com'
+```",
         parameters: [
             new OA\Parameter(
                 name: "id",
@@ -173,9 +193,35 @@ class MemberController extends AbstractController
         ],
         requestBody: new OA\RequestBody(
             required: true,
-            content: new OA\JsonContent(
-                type: UpdateMemberDTO::class
-            )
+            content: [
+                new OA\MediaType(
+                    mediaType: "application/x-www-form-urlencoded",
+                    schema: new OA\Schema(
+                        type: "object",
+                        properties: [
+                            new OA\Property(property: "name", type: "string", description: "Nome do membro"),
+                            new OA\Property(property: "document_type", type: "string", description: "Tipo do documento", enum: ["CPF", "CNPJ"]),
+                            new OA\Property(property: "document_number", type: "string", description: "Número do documento"),
+                            new OA\Property(property: "email", type: "string", description: "Email único na igreja"),
+                            new OA\Property(property: "phone", type: "string", description: "Telefone"),
+                            new OA\Property(property: "birth_date", type: "string", description: "Data de nascimento"),
+                            new OA\Property(property: "address_street", type: "string", description: "Logradouro"),
+                            new OA\Property(property: "address_number", type: "string", description: "Número"),
+                            new OA\Property(property: "address_complement", type: "string", description: "Complemento"),
+                            new OA\Property(property: "city", type: "string", description: "Cidade"),
+                            new OA\Property(property: "state", type: "string", description: "Estado"),
+                            new OA\Property(property: "cep", type: "string", description: "CEP"),
+                            new OA\Property(property: "church_id", type: "integer", description: "ID da igreja")
+                        ]
+                    )
+                ),
+                new OA\MediaType(
+                    mediaType: "application/json",
+                    schema: new OA\Schema(
+                        type: UpdateMemberDTO::class
+                    )
+                )
+            ]
         ),
         responses: [
             new OA\Response(
@@ -239,8 +285,8 @@ class MemberController extends AbstractController
     #[Route('/{id}/delete', name: 'member_delete', methods: ['DELETE'])]
     #[OA\Delete(
         path: "/member/{id}/delete",
-        summary: "Deletar membro",
-        description: "Remove um membro do sistema",
+        summary: "Excluir membro (soft-delete)",
+        description: "Marca membro como excluído sem remover do banco de dados",
         parameters: [
             new OA\Parameter(
                 name: "id",
@@ -253,10 +299,10 @@ class MemberController extends AbstractController
         responses: [
             new OA\Response(
                 response: 200,
-                description: "Membro deletado com sucesso",
+                description: "Membro excluído com sucesso",
                 content: new OA\JsonContent(
                     properties: [
-                        new OA\Property(property: "message", type: "string", example: "Membro deletado")
+                        new OA\Property(property: "message", type: "string", example: "Membro excluído com sucesso")
                     ]
                 )
             ),
@@ -268,16 +314,96 @@ class MemberController extends AbstractController
                         new OA\Property(property: "error", type: "string", example: "Membro não encontrado")
                     ]
                 )
+            ),
+            new OA\Response(
+                response: 400,
+                description: "Membro já foi excluído",
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: "error", type: "string", example: "Membro já foi excluído")
+                    ]
+                )
             )
         ],
         tags: ["Membros"]
     )]
-    public function delete(Member $member): JsonResponse
+    public function delete(int $id): JsonResponse
     {
-        $this->em->remove($member);
-        $this->em->flush();
+        $member = $this->em->getRepository(Member::class)->find($id);
+        
+        if (!$member) {
+            return $this->json(['error' => 'Membro não encontrado'], 404);
+        }
+        
+        if ($member->isDeleted()) {
+            return $this->json(['error' => 'Membro já foi excluído'], 400);
+        }
+        
+        $this->softDeleteService->softDelete($member);
+        
+        return $this->json(['message' => 'Membro excluído com sucesso']);
+    }
 
-        return $this->json(['message' => 'Membro deletado']);
+    #[Route('/{id}/restore', name: 'member_restore', methods: ['POST'])]
+    #[OA\Post(
+        path: "/member/{id}/restore",
+        summary: "Restaurar membro",
+        description: "Restaura membro que foi excluído",
+        parameters: [
+            new OA\Parameter(
+                name: "id",
+                in: "path",
+                description: "ID do membro",
+                required: true,
+                schema: new OA\Schema(type: "integer", example: 1)
+            )
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: "Membro restaurado com sucesso",
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: "message", type: "string", example: "Membro restaurado com sucesso")
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 404,
+                description: "Membro não encontrado",
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: "error", type: "string", example: "Membro não encontrado")
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 400,
+                description: "Membro não está excluído",
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: "error", type: "string", example: "Membro não está excluído")
+                    ]
+                )
+            )
+        ],
+        tags: ["Membros"]
+    )]
+    public function restore(int $id): JsonResponse
+    {
+        $member = $this->em->getRepository(Member::class)->find($id);
+        
+        if (!$member) {
+            return $this->json(['error' => 'Membro não encontrado'], 404);
+        }
+        
+        if (!$member->isDeleted()) {
+            return $this->json(['error' => 'Membro não está excluído'], 400);
+        }
+        
+        $this->softDeleteService->restore($member);
+        
+        return $this->json(['message' => 'Membro restaurado com sucesso']);
     }
 
     #[Route('/', name: 'member_list', methods: ['GET'])]
@@ -333,7 +459,8 @@ class MemberController extends AbstractController
         $churchId = $request->query->get('church_id');
         $search = $request->query->get('search', '');
         
-        $qb = $this->em->getRepository(Member::class)->createQueryBuilder('m');
+        $qb = $this->em->getRepository(Member::class)->createQueryBuilder('m')
+            ->where('m.isDeleted = false'); // Filtrar apenas membros ativos
         
         if ($churchId) {
             $qb->andWhere('m.church = :churchId')->setParameter('churchId', $churchId);

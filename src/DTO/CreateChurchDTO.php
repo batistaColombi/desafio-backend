@@ -59,7 +59,6 @@ class CreateChurchDTO
         #[OA\Property(description: "CEP", example: "01234-567")]
         public readonly ?string $cep = null,
 
-        #[Assert\Url(message: "Website deve ser uma URL válida")]
         #[OA\Property(description: "Website", example: "https://igrejacentral.com")]
         public readonly ?string $website = null,
 

@@ -5,6 +5,7 @@ nelmio_api_doc:
             - ^/church
             - ^/member
             - ^/member-transfer
+            - ^/admin
     documentation:
         info:
             title: 'API Sistema de Igrejas'
@@ -13,3 +14,12 @@ nelmio_api_doc:
         servers:
             - url: 'http://localhost:8000'
               description: 'Servidor de desenvolvimento'
+        components:
+            securitySchemes:
+                bearerAuth:
+                    type: http
+                    scheme: bearer
+                    bearerFormat: JWT
+                    description: 'JWT Token obtido através do endpoint /admin/login'
+        security:
+            - bearerAuth: []

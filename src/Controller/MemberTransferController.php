@@ -5,6 +5,7 @@ namespace App\Controller;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\Routing\Annotation\Route;
 use App\Entity\MemberTransfer;
 use App\Entity\Member;
@@ -19,6 +20,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use OpenApi\Attributes as OA;
 
 #[Route('/member-transfer')]
+#[IsGranted('ROLE_ADMIN')]
 class MemberTransferController extends AbstractController
 {
     public function __construct(
@@ -33,7 +35,15 @@ class MemberTransferController extends AbstractController
     #[OA\Post(
         path: "/member-transfer/create",
         summary: "Criar transferência de membro",
-        description: "Transfere um membro de uma igreja para outra com validações de negócio",
+        description: "Transfere um membro de uma igreja para outra com validações de negócio
+
+**Exemplo de curl:**
+```bash
+curl -X POST 'http://localhost:8000/member-transfer/create' \\
+  -H 'Authorization: Bearer SEU_TOKEN' \\
+  -H 'Content-Type: application/x-www-form-urlencoded' \\
+  -d 'member_id=1&from_church_id=1&to_church_id=2&transfer_date=2024-01-15&created_by=Pastor João'
+```",
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\MediaType(
@@ -41,13 +51,13 @@ class MemberTransferController extends AbstractController
                 schema: new OA\Schema(
                     type: "object",
                     properties: [
-                        new OA\Property(property: "memberId", type: "integer", description: "ID do membro (ex: 1)"),
-                        new OA\Property(property: "fromChurchId", type: "integer", description: "ID da igreja origem (ex: 1)"),
-                        new OA\Property(property: "toChurchId", type: "integer", description: "ID da igreja destino (ex: 2)"),
-                        new OA\Property(property: "transferDate", type: "string", description: "Data da transferência (ex: 2024-01-15)"),
-                        new OA\Property(property: "createdBy", type: "string", description: "Responsável pela transferência (ex: Pastor João)")
+                        new OA\Property(property: "member_id", type: "integer", description: "ID do membro (ex: 1)"),
+                        new OA\Property(property: "from_church_id", type: "integer", description: "ID da igreja origem (ex: 1)"),
+                        new OA\Property(property: "to_church_id", type: "integer", description: "ID da igreja destino (ex: 2)"),
+                        new OA\Property(property: "transfer_date", type: "string", description: "Data da transferência (ex: 2024-01-15)"),
+                        new OA\Property(property: "created_by", type: "string", description: "Responsável pela transferência (ex: Pastor João)")
                     ],
-                    required: ["memberId", "fromChurchId", "toChurchId"]
+                    required: ["member_id", "from_church_id", "to_church_id"]
                 )
             )
         ),

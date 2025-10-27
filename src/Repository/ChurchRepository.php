@@ -6,9 +6,6 @@ use App\Entity\Church;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
-/**
- * @extends ServiceEntityRepository<Church>
- */
 class ChurchRepository extends ServiceEntityRepository
 {
     public function __construct(ManagerRegistry $registry)
@@ -16,12 +13,6 @@ class ChurchRepository extends ServiceEntityRepository
         parent::__construct($registry, Church::class);
     }
 
-    /**
-     *
-     * 
-     * @param int $churchId O ID da igreja
-     * @return array
-     */
     public function findMembersByChurch(int $churchId): array
     {
         return $this->createQueryBuilder('c')
@@ -33,9 +24,6 @@ class ChurchRepository extends ServiceEntityRepository
             ->getResult();
     }
 
-    /**
-     * @return Church[] Returns an array of Church objects
-     */
        public function findByExampleField($value): array
        {
            return $this->createQueryBuilder('c')
