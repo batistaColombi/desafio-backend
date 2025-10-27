@@ -1,0 +1,15 @@
+# config/packages/nelmio_api_doc.yaml
+nelmio_api_doc:
+    areas:
+        path_patterns:
+            - ^/church
+            - ^/member
+            - ^/member-transfer
+    documentation:
+        info:
+            title: 'API Sistema de Igrejas'
+            description: 'API para gerenciamento de igrejas, membros e transferências'
+            version: '1.0.0'
+        servers:
+            - url: 'http://localhost:8000'
+              description: 'Servidor de desenvolvimento'

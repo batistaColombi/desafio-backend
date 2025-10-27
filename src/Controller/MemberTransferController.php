@@ -11,6 +11,7 @@ use App\Entity\Member;
 use App\Entity\Church;
 use App\Services\Validator\MemberTransferValidator;
 use Doctrine\ORM\EntityManagerInterface;
+use OpenApi\Attributes as OA;
 
 #[Route('/member-transfer')]
 class MemberTransferController extends AbstractController
@@ -20,6 +21,55 @@ class MemberTransferController extends AbstractController
     }
 
     #[Route('/create', name: 'member_transfer_create', methods: ['POST'])]
+    #[OA\Post(
+        path: "/member-transfer/create",
+        summary: "Criar transferência de membro",
+        description: "Transfere um membro de uma igreja para outra com validações de negócio",
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: "member_id", type: "integer", example: 1, description: "ID do membro a ser transferido"),
+                    new OA\Property(property: "from_church_id", type: "integer", example: 1, description: "ID da igreja origem"),
+                    new OA\Property(property: "to_church_id", type: "integer", example: 2, description: "ID da igreja destino"),
+                    new OA\Property(property: "transfer_date", type: "string", format: "date", example: "2024-01-15", description: "Data da transferência (opcional, padrão: hoje)"),
+                    new OA\Property(property: "created_by", type: "string", example: "admin", description: "Usuário que criou a transferência (opcional)")
+                ],
+                required: ["member_id", "from_church_id", "to_church_id"]
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: "Transferência criada com sucesso",
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: "id", type: "integer", example: 1),
+                        new OA\Property(property: "message", type: "string", example: "Transferência criada")
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 400,
+                description: "Erro de validação",
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: "error", type: "string", example: "Não é possível transferir para a mesma igreja.")
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 404,
+                description: "Recurso não encontrado",
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: "error", type: "string", example: "Membro não encontrado")
+                    ]
+                )
+            )
+        ],
+        tags: ["Transferências"]
+    )]
     public function create(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true) ?? $request->request->all();
@@ -56,29 +106,127 @@ class MemberTransferController extends AbstractController
     }
 
     #[Route('/{id}', name: 'member_transfer_show', methods: ['GET'])]
+    #[OA\Get(
+        path: "/member-transfer/{id}",
+        summary: "Visualizar transferência",
+        description: "Retorna os dados completos de uma transferência específica",
+        parameters: [
+            new OA\Parameter(
+                name: "id",
+                in: "path",
+                description: "ID da transferência",
+                required: true,
+                schema: new OA\Schema(type: "integer", example: 1)
+            )
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: "Dados da transferência",
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: "id", type: "integer", example: 1),
+                        new OA\Property(property: "member", type: "object"),
+                        new OA\Property(property: "from_church", type: "object"),
+                        new OA\Property(property: "to_church", type: "object"),
+                        new OA\Property(property: "transfer_date", type: "string", format: "date", example: "2024-01-15"),
+                        new OA\Property(property: "created_by", type: "string", example: "admin"),
+                        new OA\Property(property: "created_at", type: "string", format: "date-time"),
+                        new OA\Property(property: "updated_at", type: "string", format: "date-time")
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 404,
+                description: "Transferência não encontrada",
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: "error", type: "string", example: "Transferência não encontrada")
+                    ]
+                )
+            )
+        ],
+        tags: ["Transferências"]
+    )]
     public function show(MemberTransfer $transfer): JsonResponse
     {
         return $this->json($this->toArray($transfer));
     }
 
     #[Route('/{id}/update', name: 'member_transfer_update', methods: ['PUT'])]
+    #[OA\Put(
+        path: "/member-transfer/{id}/update",
+        summary: "Atualizar transferência",
+        description: "Atualiza os dados de uma transferência existente",
+        parameters: [
+            new OA\Parameter(
+                name: "id",
+                in: "path",
+                description: "ID da transferência",
+                required: true,
+                schema: new OA\Schema(type: "integer", example: 1)
+            )
+        ],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: "member_id", type: "integer", example: 1),
+                    new OA\Property(property: "from_church_id", type: "integer", example: 1),
+                    new OA\Property(property: "to_church_id", type: "integer", example: 2),
+                    new OA\Property(property: "transfer_date", type: "string", format: "date", example: "2024-01-15"),
+                    new OA\Property(property: "created_by", type: "string", example: "admin")
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: "Transferência atualizada com sucesso",
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: "message", type: "string", example: "Transferência atualizada")
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 400,
+                description: "Erro de validação",
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: "error", type: "string", example: "Não é possível transferir para a mesma igreja.")
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 404,
+                description: "Transferência não encontrada",
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: "error", type: "string", example: "Transferência não encontrada")
+                    ]
+                )
+            )
+        ],
+        tags: ["Transferências"]
+    )]
     public function update(Request $request, MemberTransfer $transfer): JsonResponse
     {
         $data = json_decode($request->getContent(), true) ?? $request->request->all();
-        
+
         if (isset($data['member_id'])) {
             $member = $this->em->getRepository(Member::class)->find($data['member_id']);
-            if ($member) $transfer->setMember($member);
+        if ($member) $transfer->setMember($member);
         }
         
         if (isset($data['from_church_id'])) {
             $fromChurch = $this->em->getRepository(Church::class)->find($data['from_church_id']);
-            if ($fromChurch) $transfer->setFromChurch($fromChurch);
+        if ($fromChurch) $transfer->setFromChurch($fromChurch);
         }
         
         if (isset($data['to_church_id'])) {
             $toChurch = $this->em->getRepository(Church::class)->find($data['to_church_id']);
-            if ($toChurch) $transfer->setToChurch($toChurch);
+        if ($toChurch) $transfer->setToChurch($toChurch);
         }
 
         if (isset($data['transfer_date'])) {
@@ -101,6 +249,41 @@ class MemberTransferController extends AbstractController
     }
 
     #[Route('/{id}/delete', name: 'member_transfer_delete', methods: ['DELETE'])]
+    #[OA\Delete(
+        path: "/member-transfer/{id}/delete",
+        summary: "Deletar transferência",
+        description: "Remove uma transferência do sistema e reverte o membro para a igreja origem",
+        parameters: [
+            new OA\Parameter(
+                name: "id",
+                in: "path",
+                description: "ID da transferência",
+                required: true,
+                schema: new OA\Schema(type: "integer", example: 1)
+            )
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: "Transferência deletada com sucesso",
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: "message", type: "string", example: "Transferência deletada")
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 404,
+                description: "Transferência não encontrada",
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: "error", type: "string", example: "Transferência não encontrada")
+                    ]
+                )
+            )
+        ],
+        tags: ["Transferências"]
+    )]
     public function delete(MemberTransfer $transfer): JsonResponse
     {
         if ($transfer->getMember() && $transfer->getFromChurch()) {
@@ -114,6 +297,56 @@ class MemberTransferController extends AbstractController
     }
 
     #[Route('/', name: 'member_transfer_list', methods: ['GET'])]
+    #[OA\Get(
+        path: "/member-transfer/",
+        summary: "Listar transferências",
+        description: "Lista todas as transferências com filtros opcionais",
+        parameters: [
+            new OA\Parameter(
+                name: "member_id",
+                in: "query",
+                description: "Filtrar por ID do membro",
+                required: false,
+                schema: new OA\Schema(type: "integer", example: 1)
+            ),
+            new OA\Parameter(
+                name: "church_id",
+                in: "query",
+                description: "Filtrar por ID da igreja",
+                required: false,
+                schema: new OA\Schema(type: "integer", example: 1)
+            ),
+            new OA\Parameter(
+                name: "type",
+                in: "query",
+                description: "Tipo de filtro: 'incoming' (entrada), 'outgoing' (saída) ou omitir para ambos",
+                required: false,
+                schema: new OA\Schema(type: "string", enum: ["incoming", "outgoing"])
+            )
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: "Lista de transferências",
+                content: new OA\JsonContent(
+                    type: "array",
+                    items: new OA\Items(
+                        properties: [
+                            new OA\Property(property: "id", type: "integer", example: 1),
+                            new OA\Property(property: "member", type: "object"),
+                            new OA\Property(property: "from_church", type: "object"),
+                            new OA\Property(property: "to_church", type: "object"),
+                            new OA\Property(property: "transfer_date", type: "string", format: "date", example: "2024-01-15"),
+                            new OA\Property(property: "created_by", type: "string", example: "admin"),
+                            new OA\Property(property: "created_at", type: "string", format: "date-time"),
+                            new OA\Property(property: "updated_at", type: "string", format: "date-time")
+                        ]
+                    )
+                )
+            )
+        ],
+        tags: ["Transferências"]
+    )]
     public function list(Request $request): JsonResponse
     {
         $memberId = $request->query->get('member_id');
@@ -146,6 +379,57 @@ class MemberTransferController extends AbstractController
     }
 
     #[Route('/member/{memberId}/history', name: 'member_transfer_history', methods: ['GET'])]
+    #[OA\Get(
+        path: "/member-transfer/member/{memberId}/history",
+        summary: "Histórico de transferências do membro",
+        description: "Retorna o histórico completo de transferências de um membro específico",
+        parameters: [
+            new OA\Parameter(
+                name: "memberId",
+                in: "path",
+                description: "ID do membro",
+                required: true,
+                schema: new OA\Schema(type: "integer", example: 1)
+            )
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: "Histórico de transferências",
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: "member", type: "object"),
+                        new OA\Property(
+                            property: "transfers",
+                            type: "array",
+                            items: new OA\Items(
+                                properties: [
+                                    new OA\Property(property: "id", type: "integer", example: 1),
+                                    new OA\Property(property: "member", type: "object"),
+                                    new OA\Property(property: "from_church", type: "object"),
+                                    new OA\Property(property: "to_church", type: "object"),
+                                    new OA\Property(property: "transfer_date", type: "string", format: "date"),
+                                    new OA\Property(property: "created_by", type: "string"),
+                                    new OA\Property(property: "created_at", type: "string", format: "date-time"),
+                                    new OA\Property(property: "updated_at", type: "string", format: "date-time")
+                                ]
+                            )
+                        )
+                    ]
+                )
+            ),
+            new OA\Response(
+                response: 404,
+                description: "Membro não encontrado",
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: "error", type: "string", example: "Membro não encontrado")
+                    ]
+                )
+            )
+        ],
+        tags: ["Transferências"]
+    )]
     public function history(int $memberId): JsonResponse
     {
         $member = $this->em->getRepository(Member::class)->find($memberId);
