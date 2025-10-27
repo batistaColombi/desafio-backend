@@ -10,13 +10,22 @@ use App\Entity\MemberTransfer;
 use App\Entity\Member;
 use App\Entity\Church;
 use App\Validator\MemberTransferValidator;
+use App\DTO\CreateMemberTransferDTO;
+use App\DTO\UpdateMemberTransferDTO;
+use App\DTO\MemberTransferDTO;
+use App\DTO\MemberTransferListDTO;
+use App\Service\MemberTransferDTOService;
 use Doctrine\ORM\EntityManagerInterface;
 use OpenApi\Attributes as OA;
 
 #[Route('/member-transfer')]
 class MemberTransferController extends AbstractController
 {
-    public function __construct(private EntityManagerInterface $em, private MemberTransferValidator $validator)
+    public function __construct(
+        private EntityManagerInterface $em, 
+        private MemberTransferValidator $validator,
+        private MemberTransferDTOService $dtoService
+    )
     {
     }
 
@@ -27,15 +36,19 @@ class MemberTransferController extends AbstractController
         description: "Transfere um membro de uma igreja para outra com validações de negócio",
         requestBody: new OA\RequestBody(
             required: true,
-            content: new OA\JsonContent(
-                properties: [
-                    new OA\Property(property: "member_id", type: "integer", example: 1, description: "ID do membro a ser transferido"),
-                    new OA\Property(property: "from_church_id", type: "integer", example: 1, description: "ID da igreja origem"),
-                    new OA\Property(property: "to_church_id", type: "integer", example: 2, description: "ID da igreja destino"),
-                    new OA\Property(property: "transfer_date", type: "string", format: "date", example: "2024-01-15", description: "Data da transferência (opcional, padrão: hoje)"),
-                    new OA\Property(property: "created_by", type: "string", example: "admin", description: "Usuário que criou a transferência (opcional)")
-                ],
-                required: ["member_id", "from_church_id", "to_church_id"]
+            content: new OA\MediaType(
+                mediaType: "application/x-www-form-urlencoded",
+                schema: new OA\Schema(
+                    type: "object",
+                    properties: [
+                        new OA\Property(property: "memberId", type: "integer", description: "ID do membro (ex: 1)"),
+                        new OA\Property(property: "fromChurchId", type: "integer", description: "ID da igreja origem (ex: 1)"),
+                        new OA\Property(property: "toChurchId", type: "integer", description: "ID da igreja destino (ex: 2)"),
+                        new OA\Property(property: "transferDate", type: "string", description: "Data da transferência (ex: 2024-01-15)"),
+                        new OA\Property(property: "createdBy", type: "string", description: "Responsável pela transferência (ex: Pastor João)")
+                    ],
+                    required: ["memberId", "fromChurchId", "toChurchId"]
+                )
             )
         ),
         responses: [
@@ -74,35 +87,29 @@ class MemberTransferController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? $request->request->all();
         
-        $member = $this->em->getRepository(Member::class)->find($data['member_id'] ?? null);
-        $fromChurch = $this->em->getRepository(Church::class)->find($data['from_church_id'] ?? null);
-        $toChurch = $this->em->getRepository(Church::class)->find($data['to_church_id'] ?? null);
+        $createDTO = CreateMemberTransferDTO::fromArray($data);
+        $validationErrors = $this->dtoService->validateDTO($createDTO);
         
-        if (!$member) {
-            return $this->json(['error' => 'Membro não encontrado'], 404);
-        }
-        if (!$fromChurch) {
-            return $this->json(['error' => 'Igreja origem não encontrada'], 404);
-        }
-        if (!$toChurch) {
-            return $this->json(['error' => 'Igreja destino não encontrada'], 404);
+        if (!empty($validationErrors)) {
+            return $this->json(['errors' => $validationErrors], 400);
         }
 
-        $transfer = new MemberTransfer();
-        $transfer->setMember($member);
-        $transfer->setFromChurch($fromChurch);
-        $transfer->setToChurch($toChurch);
-        $transfer->setTransferDate(new \DateTime($data['transfer_date'] ?? date('Y-m-d')));
-        $transfer->setCreatedBy($data['created_by'] ?? 'system');
+        $transfer = $this->dtoService->createMemberTransferFromDTO($createDTO);
 
         $this->validator->validateTransfer($transfer);
         
-        $member->setChurch($toChurch);
+        $transfer->getMember()->setChurch($transfer->getToChurch());
         
         $this->em->persist($transfer);
         $this->em->flush();
 
-        return $this->json(['id' => $transfer->getId(), 'message' => 'Transferência criada'], 201);
+        $responseDTO = $this->dtoService->toMemberTransferDTO($transfer);
+        
+        return $this->json([
+            'id' => $transfer->getId(), 
+            'message' => 'Transferência criada',
+            'data' => $responseDTO->toArray()
+        ], 201);
     }
 
     #[Route('/{id}', name: 'member_transfer_show', methods: ['GET'])]
@@ -124,16 +131,7 @@ class MemberTransferController extends AbstractController
                 response: 200,
                 description: "Dados da transferência",
                 content: new OA\JsonContent(
-                    properties: [
-                        new OA\Property(property: "id", type: "integer", example: 1),
-                        new OA\Property(property: "member", type: "object"),
-                        new OA\Property(property: "from_church", type: "object"),
-                        new OA\Property(property: "to_church", type: "object"),
-                        new OA\Property(property: "transfer_date", type: "string", format: "date", example: "2024-01-15"),
-                        new OA\Property(property: "created_by", type: "string", example: "admin"),
-                        new OA\Property(property: "created_at", type: "string", format: "date-time"),
-                        new OA\Property(property: "updated_at", type: "string", format: "date-time")
-                    ]
+                    type: MemberTransferDTO::class
                 )
             ),
             new OA\Response(
@@ -150,7 +148,8 @@ class MemberTransferController extends AbstractController
     )]
     public function show(MemberTransfer $transfer): JsonResponse
     {
-        return $this->json($this->toArray($transfer));
+        $responseDTO = $this->dtoService->toMemberTransferDTO($transfer);
+        return $this->json($responseDTO->toArray());
     }
 
     #[Route('/{id}/update', name: 'member_transfer_update', methods: ['PUT'])]
@@ -170,13 +169,7 @@ class MemberTransferController extends AbstractController
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                properties: [
-                    new OA\Property(property: "member_id", type: "integer", example: 1),
-                    new OA\Property(property: "from_church_id", type: "integer", example: 1),
-                    new OA\Property(property: "to_church_id", type: "integer", example: 2),
-                    new OA\Property(property: "transfer_date", type: "string", format: "date", example: "2024-01-15"),
-                    new OA\Property(property: "created_by", type: "string", example: "admin")
-                ]
+                type: UpdateMemberTransferDTO::class
             )
         ),
         responses: [
@@ -213,29 +206,19 @@ class MemberTransferController extends AbstractController
     public function update(Request $request, MemberTransfer $transfer): JsonResponse
     {
         $data = json_decode($request->getContent(), true) ?? $request->request->all();
-
-        if (isset($data['member_id'])) {
-            $member = $this->em->getRepository(Member::class)->find($data['member_id']);
-        if ($member) $transfer->setMember($member);
-        }
         
-        if (isset($data['from_church_id'])) {
-            $fromChurch = $this->em->getRepository(Church::class)->find($data['from_church_id']);
-        if ($fromChurch) $transfer->setFromChurch($fromChurch);
-        }
+        $updateDTO = UpdateMemberTransferDTO::fromArray($data);
+        $validationErrors = $this->dtoService->validateDTO($updateDTO);
         
-        if (isset($data['to_church_id'])) {
-            $toChurch = $this->em->getRepository(Church::class)->find($data['to_church_id']);
-        if ($toChurch) $transfer->setToChurch($toChurch);
+        if (!empty($validationErrors)) {
+            return $this->json(['errors' => $validationErrors], 400);
         }
 
-        if (isset($data['transfer_date'])) {
-            $transfer->setTransferDate(new \DateTime($data['transfer_date']));
+        if (!$updateDTO->hasUpdates()) {
+            return $this->json(['message' => 'Nenhuma alteração detectada'], 200);
         }
 
-        if (isset($data['created_by'])) {
-            $transfer->setCreatedBy($data['created_by']);
-        }
+        $transfer = $this->dtoService->updateMemberTransferFromDTO($transfer, $updateDTO);
 
         $this->validator->validateTransfer($transfer);
         
@@ -245,7 +228,12 @@ class MemberTransferController extends AbstractController
         
         $this->em->flush();
 
-        return $this->json(['message' => 'Transferência atualizada']);
+        $responseDTO = $this->dtoService->toMemberTransferDTO($transfer);
+        
+        return $this->json([
+            'message' => 'Transferência atualizada',
+            'data' => $responseDTO->toArray()
+        ]);
     }
 
     #[Route('/{id}/delete', name: 'member_transfer_delete', methods: ['DELETE'])]
@@ -300,7 +288,7 @@ class MemberTransferController extends AbstractController
     #[OA\Get(
         path: "/member-transfer/",
         summary: "Listar transferências",
-        description: "Lista todas as transferências com filtros opcionais",
+        description: "Lista todas as transferências com filtros opcionais e busca por nome do membro",
         parameters: [
             new OA\Parameter(
                 name: "member_id",
@@ -322,6 +310,13 @@ class MemberTransferController extends AbstractController
                 description: "Tipo de filtro: 'incoming' (entrada), 'outgoing' (saída) ou omitir para ambos",
                 required: false,
                 schema: new OA\Schema(type: "string", enum: ["incoming", "outgoing"])
+            ),
+            new OA\Parameter(
+                name: "search",
+                in: "query",
+                description: "Buscar por nome do membro",
+                required: false,
+                schema: new OA\Schema(type: "string")
             )
         ],
         responses: [
@@ -329,19 +324,23 @@ class MemberTransferController extends AbstractController
                 response: 200,
                 description: "Lista de transferências",
                 content: new OA\JsonContent(
-                    type: "array",
-                    items: new OA\Items(
-                        properties: [
-                            new OA\Property(property: "id", type: "integer", example: 1),
-                            new OA\Property(property: "member", type: "object"),
-                            new OA\Property(property: "from_church", type: "object"),
-                            new OA\Property(property: "to_church", type: "object"),
-                            new OA\Property(property: "transfer_date", type: "string", format: "date", example: "2024-01-15"),
-                            new OA\Property(property: "created_by", type: "string", example: "admin"),
-                            new OA\Property(property: "created_at", type: "string", format: "date-time"),
-                            new OA\Property(property: "updated_at", type: "string", format: "date-time")
-                        ]
-                    )
+                    properties: [
+                        new OA\Property(property: "pagination", type: "object", properties: [
+                            new OA\Property(property: "current_page", type: "integer", example: 1),
+                            new OA\Property(property: "total_pages", type: "integer", example: 1),
+                            new OA\Property(property: "total_items", type: "integer", example: 4),
+                            new OA\Property(property: "items_per_page", type: "integer", example: 4),
+                            new OA\Property(property: "has_next", type: "boolean", example: false),
+                            new OA\Property(property: "has_previous", type: "boolean", example: false)
+                        ]),
+                        new OA\Property(
+                            property: "data",
+                            type: "array",
+                            items: new OA\Items(
+                                type: MemberTransferListDTO::class
+                            )
+                        )
+                    ]
                 )
             )
         ],
@@ -352,8 +351,10 @@ class MemberTransferController extends AbstractController
         $memberId = $request->query->get('member_id');
         $churchId = $request->query->get('church_id');
         $type = $request->query->get('type');
+        $search = $request->query->get('search', '');
         
-        $qb = $this->em->getRepository(MemberTransfer::class)->createQueryBuilder('mt');
+        $qb = $this->em->getRepository(MemberTransfer::class)->createQueryBuilder('mt')
+            ->leftJoin('mt.member', 'm');
         
         if ($memberId) {
             $qb->andWhere('mt.member = :memberId')->setParameter('memberId', $memberId);
@@ -370,12 +371,29 @@ class MemberTransferController extends AbstractController
             $qb->setParameter('churchId', $churchId);
         }
         
-        $qb->orderBy('mt.transfer_date', 'DESC');
+        if (!empty($search)) {
+            $qb->andWhere('m.name LIKE :search')
+               ->setParameter('search', '%' . $search . '%');
+        }
+        
+        $qb->orderBy('mt.id', 'ASC');
         
         $transfers = $qb->getQuery()->getResult();
-        $result = array_map(fn(MemberTransfer $t) => $this->toArray($t), $transfers);
+        $result = array_map(fn(MemberTransfer $t) => $this->dtoService->toMemberTransferListDTO($t)->toArray(), $transfers);
         
-        return $this->json($result);
+        $response = [
+            'pagination' => [
+                'current_page' => 1,
+                'total_pages' => 1,
+                'total_items' => count($transfers),
+                'items_per_page' => count($transfers),
+                'has_next' => false,
+                'has_previous' => false
+            ],
+            'data' => $result
+        ];
+        
+        return $this->json($response);
     }
 
     #[Route('/member/{memberId}/history', name: 'member_transfer_history', methods: ['GET'])]
@@ -398,21 +416,20 @@ class MemberTransferController extends AbstractController
                 description: "Histórico de transferências",
                 content: new OA\JsonContent(
                     properties: [
+                        new OA\Property(property: "pagination", type: "object", properties: [
+                            new OA\Property(property: "current_page", type: "integer", example: 1),
+                            new OA\Property(property: "total_pages", type: "integer", example: 1),
+                            new OA\Property(property: "total_items", type: "integer", example: 4),
+                            new OA\Property(property: "items_per_page", type: "integer", example: 4),
+                            new OA\Property(property: "has_next", type: "boolean", example: false),
+                            new OA\Property(property: "has_previous", type: "boolean", example: false)
+                        ]),
                         new OA\Property(property: "member", type: "object"),
                         new OA\Property(
-                            property: "transfers",
+                            property: "data",
                             type: "array",
                             items: new OA\Items(
-                                properties: [
-                                    new OA\Property(property: "id", type: "integer", example: 1),
-                                    new OA\Property(property: "member", type: "object"),
-                                    new OA\Property(property: "from_church", type: "object"),
-                                    new OA\Property(property: "to_church", type: "object"),
-                                    new OA\Property(property: "transfer_date", type: "string", format: "date"),
-                                    new OA\Property(property: "created_by", type: "string"),
-                                    new OA\Property(property: "created_at", type: "string", format: "date-time"),
-                                    new OA\Property(property: "updated_at", type: "string", format: "date-time")
-                                ]
+                                type: MemberTransferListDTO::class
                             )
                         )
                     ]
@@ -442,13 +459,21 @@ class MemberTransferController extends AbstractController
             ->createQueryBuilder('mt')
             ->where('mt.member = :member')
             ->setParameter('member', $member)
-            ->orderBy('mt.transfer_date', 'DESC')
+            ->orderBy('mt.id', 'ASC')
             ->getQuery()
             ->getResult();
         
-        $result = array_map(fn(MemberTransfer $t) => $this->toArray($t), $transfers);
+        $result = array_map(fn(MemberTransfer $t) => $this->dtoService->toMemberTransferListDTO($t)->toArray(), $transfers);
         
         return $this->json([
+            'pagination' => [
+                'current_page' => 1,
+                'total_pages' => 1,
+                'total_items' => count($transfers),
+                'items_per_page' => count($transfers),
+                'has_next' => false,
+                'has_previous' => false
+            ],
             'member' => [
                 'id' => $member->getId(),
                 'name' => $member->getName(),
@@ -457,32 +482,8 @@ class MemberTransferController extends AbstractController
                     'name' => $member->getChurch()->getName()
                 ] : null
             ],
-            'transfers' => $result
+            'data' => $result
         ]);
     }
 
-    private function toArray(MemberTransfer $transfer): array
-    {
-        return [
-            'id' => $transfer->getId(),
-            'member' => [
-                'id' => $transfer->getMember()->getId(),
-                'name' => $transfer->getMember()->getName(),
-                'email' => $transfer->getMember()->getEmail(),
-                'document_number' => $transfer->getMember()->getDocumentNumber()
-            ],
-            'from_church' => [
-                'id' => $transfer->getFromChurch()->getId(),
-                'name' => $transfer->getFromChurch()->getName()
-            ],
-            'to_church' => [
-                'id' => $transfer->getToChurch()->getId(),
-                'name' => $transfer->getToChurch()->getName()
-            ],
-            'transfer_date' => $transfer->getTransferDate()->format('Y-m-d'),
-            'created_by' => $transfer->getCreatedBy(),
-            'created_at' => $transfer->getCreatedAt()->format('Y-m-d H:i:s'),
-            'updated_at' => $transfer->getUpdatedAt()->format('Y-m-d H:i:s')
-        ];
-    }
 }

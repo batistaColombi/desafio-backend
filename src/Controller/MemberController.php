@@ -5,6 +5,11 @@ namespace App\Controller;
 use App\Entity\Member;
 use App\Entity\Church;
 use App\Validator\MemberValidator;
+use App\DTO\CreateMemberDTO;
+use App\DTO\UpdateMemberDTO;
+use App\DTO\MemberDTO;
+use App\DTO\MemberListDTO;
+use App\Service\MemberDTOService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -15,7 +20,11 @@ use OpenApi\Attributes as OA;
 #[Route('/member')]
 class MemberController extends AbstractController
 {
-    public function __construct(private EntityManagerInterface $em, private MemberValidator $validator)
+    public function __construct(
+        private EntityManagerInterface $em, 
+        private MemberValidator $validator,
+        private MemberDTOService $dtoService
+    )
     {
     }
 
@@ -26,23 +35,27 @@ class MemberController extends AbstractController
         description: "Cria um novo membro com validações de documento e email único por igreja",
         requestBody: new OA\RequestBody(
             required: true,
-            content: new OA\JsonContent(
-                properties: [
-                    new OA\Property(property: "name", type: "string", example: "João Silva", description: "Nome do membro"),
-                    new OA\Property(property: "document_type", type: "string", enum: ["CPF", "CNPJ"], example: "CPF", description: "Tipo do documento"),
-                    new OA\Property(property: "document_number", type: "string", example: "11144477735", description: "Número do documento"),
-                    new OA\Property(property: "email", type: "string", format: "email", example: "joao@email.com", description: "Email único na igreja"),
-                    new OA\Property(property: "phone", type: "string", example: "(11) 99999-3333", description: "Telefone"),
-                    new OA\Property(property: "birth_date", type: "string", format: "date", example: "1990-05-15", description: "Data de nascimento"),
-                    new OA\Property(property: "address_street", type: "string", example: "Rua A, 100", description: "Logradouro"),
-                    new OA\Property(property: "address_number", type: "string", example: "100", description: "Número"),
-                    new OA\Property(property: "address_complement", type: "string", example: "Apto 1", description: "Complemento"),
-                    new OA\Property(property: "city", type: "string", example: "São Paulo", description: "Cidade"),
-                    new OA\Property(property: "state", type: "string", example: "SP", description: "Estado"),
-                    new OA\Property(property: "cep", type: "string", example: "01234-567", description: "CEP"),
-                    new OA\Property(property: "church_id", type: "integer", example: 1, description: "ID da igreja")
-                ],
-                required: ["name", "document_type", "document_number", "church_id"]
+            content: new OA\MediaType(
+                mediaType: "application/x-www-form-urlencoded",
+                schema: new OA\Schema(
+                    type: "object",
+                    properties: [
+                        new OA\Property(property: "name", type: "string", description: "Nome do membro (ex: João Silva)"),
+                        new OA\Property(property: "documentType", type: "string", description: "Tipo do documento", enum: ["CPF", "CNPJ"]),
+                        new OA\Property(property: "documentNumber", type: "string", description: "Número do documento (ex: 11144477735)"),
+                        new OA\Property(property: "email", type: "string", description: "Email único na igreja (ex: joao@email.com)"),
+                        new OA\Property(property: "phone", type: "string", description: "Telefone (ex: (11) 99999-3333)"),
+                        new OA\Property(property: "birthDate", type: "string", description: "Data de nascimento (ex: 1990-05-15)"),
+                        new OA\Property(property: "addressStreet", type: "string", description: "Logradouro (ex: Rua das Palmeiras)"),
+                        new OA\Property(property: "addressNumber", type: "string", description: "Número (ex: 456)"),
+                        new OA\Property(property: "addressComplement", type: "string", description: "Complemento (ex: Apt 2)"),
+                        new OA\Property(property: "city", type: "string", description: "Cidade (ex: São Paulo)"),
+                        new OA\Property(property: "state", type: "string", description: "Estado (ex: SP)"),
+                        new OA\Property(property: "cep", type: "string", description: "CEP (ex: 01234-567)"),
+                        new OA\Property(property: "churchId", type: "integer", description: "ID da igreja (ex: 1)")
+                    ],
+                    required: ["name", "documentType", "documentNumber", "email", "phone", "birthDate", "addressStreet", "addressNumber", "city", "state", "cep", "churchId"]
+                )
             )
         ),
         responses: [
@@ -81,37 +94,27 @@ class MemberController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? $request->request->all();
         
-        $member = new Member();
-        $member->setName($data['name'] ?? null);
-        $member->setDocumentType($data['document_type'] ?? null);
-        $member->setDocumentNumber($data['document_number'] ?? null);
-        $member->setEmail($data['email'] ?? null);
-        $member->setPhone($data['phone'] ?? null);
+        $createDTO = CreateMemberDTO::fromArray($data);
+        $validationErrors = $this->dtoService->validateDTO($createDTO);
         
-        if ($data['birth_date'] ?? null) {
-            $member->setBirthDate(new \DateTime($data['birth_date']));
+        if (!empty($validationErrors)) {
+            return $this->json(['errors' => $validationErrors], 400);
         }
-        
-        $member->setAddressStreet($data['address_street'] ?? null);
-        $member->setAddressNumber($data['address_number'] ?? null);
-        $member->setAddressComplement($data['address_complement'] ?? null);
-        $member->setCity($data['city'] ?? null);
-        $member->setState($data['state'] ?? null);
-        $member->setCep($data['cep'] ?? null);
 
-        if ($data['church_id'] ?? null) {
-            $church = $this->em->getRepository(Church::class)->find($data['church_id']);
-            if (!$church) {
-                return $this->json(['error' => 'Igreja não encontrada'], 404);
-            }
-            $member->setChurch($church);
-        }
+        $member = $this->dtoService->createMemberFromDTO($createDTO);
 
         $this->validator->validate($member);
+
         $this->em->persist($member);
         $this->em->flush();
 
-        return $this->json(['id' => $member->getId(), 'message' => 'Membro criado'], 201);
+        $responseDTO = $this->dtoService->toMemberDTO($member);
+        
+        return $this->json([
+            'id' => $member->getId(), 
+            'message' => 'Membro criado',
+            'data' => $responseDTO->toArray()
+        ], 201);
     }
 
     #[Route('/{id}', name: 'member_show', methods: ['GET'])]
@@ -133,18 +136,7 @@ class MemberController extends AbstractController
                 response: 200,
                 description: "Dados do membro",
                 content: new OA\JsonContent(
-                    properties: [
-                        new OA\Property(property: "id", type: "integer", example: 1),
-                        new OA\Property(property: "name", type: "string", example: "João Silva"),
-                        new OA\Property(property: "document_type", type: "string", example: "CPF"),
-                        new OA\Property(property: "document_number", type: "string", example: "11144477735"),
-                        new OA\Property(property: "email", type: "string", example: "joao@email.com"),
-                        new OA\Property(property: "phone", type: "string", example: "(11) 99999-3333"),
-                        new OA\Property(property: "birth_date", type: "string", format: "date", example: "1990-05-15"),
-                        new OA\Property(property: "church", type: "object"),
-                        new OA\Property(property: "created_at", type: "string", format: "date-time"),
-                        new OA\Property(property: "updated_at", type: "string", format: "date-time")
-                    ]
+                    type: MemberDTO::class
                 )
             ),
             new OA\Response(
@@ -161,7 +153,8 @@ class MemberController extends AbstractController
     )]
     public function show(Member $member): JsonResponse
     {
-        return $this->json($this->toArray($member));
+        $responseDTO = $this->dtoService->toMemberDTO($member);
+        return $this->json($responseDTO->toArray());
     }
 
     #[Route('/{id}', name: 'member_update', methods: ['PUT'])]
@@ -181,15 +174,7 @@ class MemberController extends AbstractController
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                properties: [
-                    new OA\Property(property: "name", type: "string", example: "João Silva Atualizado"),
-                    new OA\Property(property: "document_type", type: "string", enum: ["CPF", "CNPJ"]),
-                    new OA\Property(property: "document_number", type: "string"),
-                    new OA\Property(property: "email", type: "string", format: "email"),
-                    new OA\Property(property: "phone", type: "string"),
-                    new OA\Property(property: "birth_date", type: "string", format: "date"),
-                    new OA\Property(property: "church_id", type: "integer")
-                ]
+                type: UpdateMemberDTO::class
             )
         ),
         responses: [
@@ -227,35 +212,28 @@ class MemberController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? $request->request->all();
         
-        if (isset($data['name'])) $member->setName($data['name']);
-        if (isset($data['email'])) $member->setEmail($data['email']);
-        if (isset($data['document_type'])) $member->setDocumentType($data['document_type']);
-        if (isset($data['document_number'])) $member->setDocumentNumber($data['document_number']);
-        if (isset($data['phone'])) $member->setPhone($data['phone']);
+        $updateDTO = UpdateMemberDTO::fromArray($data);
+        $validationErrors = $this->dtoService->validateDTO($updateDTO);
         
-        if (isset($data['birth_date'])) {
-            $member->setBirthDate(new \DateTime($data['birth_date']));
+        if (!empty($validationErrors)) {
+            return $this->json(['errors' => $validationErrors], 400);
         }
-        
-        if (isset($data['address_street'])) $member->setAddressStreet($data['address_street']);
-        if (isset($data['address_number'])) $member->setAddressNumber($data['address_number']);
-        if (isset($data['address_complement'])) $member->setAddressComplement($data['address_complement']);
-        if (isset($data['city'])) $member->setCity($data['city']);
-        if (isset($data['state'])) $member->setState($data['state']);
-        if (isset($data['cep'])) $member->setCep($data['cep']);
 
-        if (isset($data['church_id'])) {
-            $church = $this->em->getRepository(Church::class)->find($data['church_id']);
-            if (!$church) {
-                return $this->json(['error' => 'Igreja não encontrada'], 404);
-            }
-            $member->setChurch($church);
+        if (!$updateDTO->hasUpdates()) {
+            return $this->json(['message' => 'Nenhuma alteração detectada'], 200);
         }
+
+        $member = $this->dtoService->updateMemberFromDTO($member, $updateDTO);
 
         $this->validator->validate($member);
         $this->em->flush();
 
-        return $this->json(['message' => 'Membro atualizado']);
+        $responseDTO = $this->dtoService->toMemberDTO($member);
+        
+        return $this->json([
+            'message' => 'Membro atualizado',
+            'data' => $responseDTO->toArray()
+        ]);
     }
 
     #[Route('/{id}/delete', name: 'member_delete', methods: ['DELETE'])]
@@ -306,7 +284,7 @@ class MemberController extends AbstractController
     #[OA\Get(
         path: "/member/",
         summary: "Listar membros",
-        description: "Retorna lista de todos os membros com filtro opcional por igreja",
+        description: "Retorna lista de todos os membros com filtro opcional por igreja e busca por nome",
         parameters: [
             new OA\Parameter(
                 name: "church_id",
@@ -314,6 +292,13 @@ class MemberController extends AbstractController
                 description: "Filtrar por ID da igreja",
                 required: false,
                 schema: new OA\Schema(type: "integer", example: 1)
+            ),
+            new OA\Parameter(
+                name: "search",
+                in: "query",
+                description: "Buscar por nome do membro",
+                required: false,
+                schema: new OA\Schema(type: "string")
             )
         ],
         responses: [
@@ -321,21 +306,23 @@ class MemberController extends AbstractController
                 response: 200,
                 description: "Lista de membros",
                 content: new OA\JsonContent(
-                    type: "array",
-                    items: new OA\Items(
-                        properties: [
-                            new OA\Property(property: "id", type: "integer", example: 1),
-                            new OA\Property(property: "name", type: "string", example: "João Silva"),
-                            new OA\Property(property: "document_type", type: "string", example: "CPF"),
-                            new OA\Property(property: "document_number", type: "string", example: "11144477735"),
-                            new OA\Property(property: "email", type: "string", example: "joao@email.com"),
-                            new OA\Property(property: "phone", type: "string", example: "(11) 99999-3333"),
-                            new OA\Property(property: "birth_date", type: "string", format: "date", example: "1990-05-15"),
-                            new OA\Property(property: "church", type: "object"),
-                            new OA\Property(property: "created_at", type: "string", format: "date-time"),
-                            new OA\Property(property: "updated_at", type: "string", format: "date-time")
-                        ]
-                    )
+                    properties: [
+                        new OA\Property(property: "pagination", type: "object", properties: [
+                            new OA\Property(property: "current_page", type: "integer", example: 1),
+                            new OA\Property(property: "total_pages", type: "integer", example: 1),
+                            new OA\Property(property: "total_items", type: "integer", example: 4),
+                            new OA\Property(property: "items_per_page", type: "integer", example: 4),
+                            new OA\Property(property: "has_next", type: "boolean", example: false),
+                            new OA\Property(property: "has_previous", type: "boolean", example: false)
+                        ]),
+                        new OA\Property(
+                            property: "data",
+                            type: "array",
+                            items: new OA\Items(
+                                type: MemberListDTO::class
+                            )
+                        )
+                    ]
                 )
             )
         ],
@@ -344,6 +331,7 @@ class MemberController extends AbstractController
     public function list(Request $request): JsonResponse
     {
         $churchId = $request->query->get('church_id');
+        $search = $request->query->get('search', '');
         
         $qb = $this->em->getRepository(Member::class)->createQueryBuilder('m');
         
@@ -351,55 +339,29 @@ class MemberController extends AbstractController
             $qb->andWhere('m.church = :churchId')->setParameter('churchId', $churchId);
         }
         
-        $qb->orderBy('m.name', 'ASC');
+        if (!empty($search)) {
+            $qb->andWhere('m.name LIKE :search')
+               ->setParameter('search', '%' . $search . '%');
+        }
+        
+        $qb->orderBy('m.id', 'ASC');
         
         $members = $qb->getQuery()->getResult();
-        $result = array_map(fn(Member $m) => $this->toArray($m), $members);
+        $result = array_map(fn(Member $m) => $this->dtoService->toMemberListDTO($m)->toArray(), $members);
         
-        return $this->json($result);
-    }
-
-    private function formatAddress(?string $street, ?string $number, ?string $complement, ?string $city, ?string $state, ?string $cep): ?string
-    {
-        if (!$street && !$number && !$city && !$state && !$cep) {
-            return null;
-        }
-
-        $parts = [];
-        if ($street) $parts[] = $street;
-        if ($number) $parts[] = $number;
-        if ($complement) $parts[] = $complement;
-        if ($city) $parts[] = $city;
-        if ($state) $parts[] = $state;
-        if ($cep) $parts[] = $cep;
-
-        return implode(', ', $parts);
-    }
-
-    private function toArray(Member $member): array
-    {
-        return [
-            'id' => $member->getId(),
-            'name' => $member->getName(),
-            'document_type' => $member->getDocumentType(),
-            'document_number' => $member->getDocumentNumber(),
-            'email' => $member->getEmail(),
-            'phone' => $member->getPhone(),
-            'birth_date' => $member->getBirthDate()?->format('Y-m-d'),
-            'address' => $this->formatAddress(
-                $member->getAddressStreet(),
-                $member->getAddressNumber(),
-                $member->getAddressComplement(),
-                $member->getCity(),
-                $member->getState(),
-                $member->getCep()
-            ),
-            'church' => $member->getChurch() ? [
-                'id' => $member->getChurch()->getId(),
-                'name' => $member->getChurch()->getName(),
-            ] : null,
-            'created_at' => $member->getCreatedAt()?->format('Y-m-d H:i:s'),
-            'updated_at' => $member->getUpdatedAt()?->format('Y-m-d H:i:s'),
+        $response = [
+            'pagination' => [
+                'current_page' => 1,
+                'total_pages' => 1,
+                'total_items' => count($members),
+                'items_per_page' => count($members),
+                'has_next' => false,
+                'has_previous' => false
+            ],
+            'data' => $result
         ];
+        
+        return $this->json($response);
     }
+
 }

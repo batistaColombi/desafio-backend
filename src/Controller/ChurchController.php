@@ -35,23 +35,27 @@ class ChurchController extends AbstractController
         description: "Cria uma nova igreja com validações de documento e código interno",
         requestBody: new OA\RequestBody(
             required: true,
-            content: new OA\JsonContent(
-                properties: [
-                    new OA\Property(property: "name", type: "string", example: "Igreja Central", description: "Nome da igreja"),
-                    new OA\Property(property: "document_type", type: "string", enum: ["CPF", "CNPJ"], example: "CNPJ", description: "Tipo do documento"),
-                    new OA\Property(property: "document_number", type: "string", example: "11222333000181", description: "Número do documento"),
-                    new OA\Property(property: "internal_code", type: "string", example: "IC001", description: "Código interno único"),
-                    new OA\Property(property: "phone", type: "string", example: "(11) 99999-1111", description: "Telefone"),
-                    new OA\Property(property: "address_street", type: "string", example: "Rua das Flores, 123", description: "Logradouro"),
-                    new OA\Property(property: "address_number", type: "string", example: "123", description: "Número"),
-                    new OA\Property(property: "address_complement", type: "string", example: "Sala 1", description: "Complemento"),
-                    new OA\Property(property: "city", type: "string", example: "São Paulo", description: "Cidade"),
-                    new OA\Property(property: "state", type: "string", example: "SP", description: "Estado"),
-                    new OA\Property(property: "cep", type: "string", example: "01234-567", description: "CEP"),
-                    new OA\Property(property: "website", type: "string", example: "https://igrejacentral.com", description: "Website"),
-                    new OA\Property(property: "members_limit", type: "integer", example: 100, description: "Limite de membros")
-                ],
-                required: ["name", "document_type", "document_number"]
+            content: new OA\MediaType(
+                mediaType: "application/x-www-form-urlencoded",
+                schema: new OA\Schema(
+                    type: "object",
+                    properties: [
+                        new OA\Property(property: "name", type: "string", description: "Nome da igreja (ex: Igreja Central)"),
+                        new OA\Property(property: "documentType", type: "string", description: "Tipo do documento", enum: ["CPF", "CNPJ"]),
+                        new OA\Property(property: "documentNumber", type: "string", description: "Número do documento (ex: 11222333000181)"),
+                        new OA\Property(property: "internalCode", type: "string", description: "Código interno único (ex: IC001)"),
+                        new OA\Property(property: "phone", type: "string", description: "Telefone (ex: (11) 99999-1111)"),
+                        new OA\Property(property: "addressStreet", type: "string", description: "Logradouro (ex: Rua das Flores)"),
+                        new OA\Property(property: "addressNumber", type: "string", description: "Número (ex: 123)"),
+                        new OA\Property(property: "addressComplement", type: "string", description: "Complemento (ex: Sala 1)"),
+                        new OA\Property(property: "city", type: "string", description: "Cidade (ex: São Paulo)"),
+                        new OA\Property(property: "state", type: "string", description: "Estado (ex: SP)"),
+                        new OA\Property(property: "cep", type: "string", description: "CEP (ex: 01234-567)"),
+                        new OA\Property(property: "website", type: "string", description: "Website (ex: https://igrejacentral.com)"),
+                        new OA\Property(property: "membersLimit", type: "integer", description: "Limite de membros (ex: 100)")
+                    ],
+                    required: ["name", "documentType", "documentNumber", "internalCode", "phone", "addressStreet", "addressNumber", "city", "state", "cep", "membersLimit"]
+                )
             )
         ),
         responses: [
@@ -123,18 +127,7 @@ class ChurchController extends AbstractController
                 response: 200,
                 description: "Dados da igreja",
                 content: new OA\JsonContent(
-                    properties: [
-                        new OA\Property(property: "id", type: "integer", example: 1),
-                        new OA\Property(property: "name", type: "string", example: "Igreja Central"),
-                        new OA\Property(property: "document_type", type: "string", example: "CNPJ"),
-                        new OA\Property(property: "document_number", type: "string", example: "11222333000181"),
-                        new OA\Property(property: "internal_code", type: "string", example: "IC001"),
-                        new OA\Property(property: "phone", type: "string", example: "(11) 99999-1111"),
-                        new OA\Property(property: "members_limit", type: "integer", example: 100),
-                        new OA\Property(property: "current_members_count", type: "integer", example: 5),
-                        new OA\Property(property: "created_at", type: "string", format: "date-time"),
-                        new OA\Property(property: "updated_at", type: "string", format: "date-time")
-                    ]
+                    type: ChurchDTO::class
                 )
             ),
             new OA\Response(
@@ -172,14 +165,7 @@ class ChurchController extends AbstractController
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                properties: [
-                    new OA\Property(property: "name", type: "string", example: "Igreja Central Atualizada"),
-                    new OA\Property(property: "document_type", type: "string", enum: ["CPF", "CNPJ"]),
-                    new OA\Property(property: "document_number", type: "string"),
-                    new OA\Property(property: "internal_code", type: "string"),
-                    new OA\Property(property: "phone", type: "string"),
-                    new OA\Property(property: "members_limit", type: "integer")
-                ]
+                type: UpdateChurchDTO::class
             )
         ),
         responses: [
@@ -299,7 +285,7 @@ class ChurchController extends AbstractController
     #[OA\Get(
         path: "/church/",
         summary: "Listar igrejas",
-        description: "Lista paginada de todas as igrejas cadastradas",
+        description: "Lista paginada de todas as igrejas cadastradas com busca por nome",
         parameters: [
             new OA\Parameter(
                 name: "page",
@@ -314,6 +300,13 @@ class ChurchController extends AbstractController
                 description: "Número de itens por página",
                 required: false,
                 schema: new OA\Schema(type: "integer", example: 10, default: 10)
+            ),
+            new OA\Parameter(
+                name: "search",
+                in: "query",
+                description: "Buscar por nome da igreja",
+                required: false,
+                schema: new OA\Schema(type: "string")
             )
         ],
         responses: [
@@ -322,32 +315,21 @@ class ChurchController extends AbstractController
                 description: "Lista paginada de igrejas",
                 content: new OA\JsonContent(
                     properties: [
+                        new OA\Property(property: "pagination", type: "object", properties: [
+                            new OA\Property(property: "current_page", type: "integer", example: 1),
+                            new OA\Property(property: "total_pages", type: "integer", example: 1),
+                            new OA\Property(property: "total_items", type: "integer", example: 4),
+                            new OA\Property(property: "items_per_page", type: "integer", example: 10),
+                            new OA\Property(property: "has_next", type: "boolean", example: false),
+                            new OA\Property(property: "has_previous", type: "boolean", example: false)
+                        ]),
                         new OA\Property(
                             property: "data",
                             type: "array",
                             items: new OA\Items(
-                                properties: [
-                                    new OA\Property(property: "id", type: "integer", example: 1),
-                                    new OA\Property(property: "name", type: "string", example: "Igreja Central"),
-                                    new OA\Property(property: "document_type", type: "string", example: "CNPJ"),
-                                    new OA\Property(property: "document_number", type: "string", example: "11222333000181"),
-                                    new OA\Property(property: "internal_code", type: "string", example: "IC001"),
-                                    new OA\Property(property: "phone", type: "string", example: "(11) 99999-1111"),
-                                    new OA\Property(property: "members_limit", type: "integer", example: 100),
-                                    new OA\Property(property: "current_members_count", type: "integer", example: 5),
-                                    new OA\Property(property: "created_at", type: "string", format: "date-time"),
-                                    new OA\Property(property: "updated_at", type: "string", format: "date-time")
-                                ]
+                                type: ChurchListDTO::class
                             )
-                        ),
-                        new OA\Property(property: "pagination", type: "object", properties: [
-                            new OA\Property(property: "current_page", type: "integer", example: 1),
-                            new OA\Property(property: "total_pages", type: "integer", example: 3),
-                            new OA\Property(property: "total_items", type: "integer", example: 25),
-                            new OA\Property(property: "items_per_page", type: "integer", example: 10),
-                            new OA\Property(property: "has_next", type: "boolean", example: true),
-                            new OA\Property(property: "has_previous", type: "boolean", example: false)
-                        ])
+                        )
                     ]
                 )
             )
@@ -358,10 +340,16 @@ class ChurchController extends AbstractController
     {
         $page = (int) $request->query->get('page', 1);
         $limit = (int) $request->query->get('limit', 10);
+        $search = $request->query->get('search', '');
+
+        $qb = $this->em->getRepository(Church::class)->createQueryBuilder('c');
         
-        $query = $this->em->getRepository(Church::class)->createQueryBuilder('c')
-            ->orderBy('c.created_at', 'DESC')
-            ->getQuery();
+        if (!empty($search)) {
+            $qb->andWhere('c.name LIKE :search')
+               ->setParameter('search', '%' . $search . '%');
+        }
+        
+        $query = $qb->orderBy('c.id', 'ASC')->getQuery();
         
         $pagination = $this->paginator->paginate(
             $query,
@@ -372,7 +360,6 @@ class ChurchController extends AbstractController
         $churchesData = array_map(fn(Church $c) => $this->dtoService->toChurchListDTO($c)->toArray(), $pagination->getItems());
         
         $response = [
-            'data' => $churchesData,
             'pagination' => [
                 'current_page' => $pagination->getCurrentPageNumber(),
                 'total_pages' => $pagination->getPageCount(),
@@ -380,7 +367,8 @@ class ChurchController extends AbstractController
                 'items_per_page' => $pagination->getItemNumberPerPage(),
                 'has_next' => $pagination->getCurrentPageNumber() < $pagination->getPageCount(),
                 'has_previous' => $pagination->getCurrentPageNumber() > 1
-            ]
+            ],
+            'data' => $churchesData
         ];
         
         return $this->json($response);
