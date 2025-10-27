@@ -8,6 +8,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Annotation\Route;
 
 #[Route('/church')]
@@ -18,88 +19,88 @@ class ChurchController extends AbstractController
     }
 
     #[Route('/create', name: 'church_create', methods: ['POST'])]
-    public function create(Request $request): Response
+    public function create(Request $request): JsonResponse
     {
+        $data = json_decode($request->getContent(), true) ?? $request->request->all();
+        
         $church = new Church();
-        $church->setName($request->request->get('name'));
-        $church->setDocumentType($request->request->get('document_type'));
-        $church->setDocumentNumber($request->request->get('document_number'));
-        $church->setInternalCode($request->request->get('internal_code'));
-        $church->setPhone($request->request->get('phone'));
-        $church->setAddressStreet($request->request->get('address_street'));
-        $church->setAddressNumber($request->request->get('address_number'));
-        $church->setAddressComplement($request->request->get('address_complement'));
-        $church->setCity($request->request->get('city'));
-        $church->setState($request->request->get('state'));
-        $church->setCep($request->request->get('cep'));
-        $church->setWebsite($request->request->get('website'));
-        $church->setMembersLimit((int)$request->request->get('members_limit'));
+        $church->setName($data['name'] ?? null);
+        $church->setDocumentType($data['document_type'] ?? null);
+        $church->setDocumentNumber($data['document_number'] ?? null);
+        $church->setInternalCode($data['internal_code'] ?? null);
+        $church->setPhone($data['phone'] ?? null);
+        $church->setAddressStreet($data['address_street'] ?? null);
+        $church->setAddressNumber($data['address_number'] ?? null);
+        $church->setAddressComplement($data['address_complement'] ?? null);
+        $church->setCity($data['city'] ?? null);
+        $church->setState($data['state'] ?? null);
+        $church->setCep($data['cep'] ?? null);
+        $church->setWebsite($data['website'] ?? null);
+        $church->setMembersLimit(isset($data['members_limit']) ? (int)$data['members_limit'] : null);
 
         $this->validator->validate($church);
 
         $this->em->persist($church);
         $this->em->flush();
 
-        return $this->json(['status' => 'ok', 'id' => $church->getId()]);
+        return $this->json(['id' => $church->getId(), 'message' => 'Igreja criada'], 201);
     }
 
     #[Route('/{id}', name: 'church_show', methods: ['GET'])]
-    public function show(Church $church): Response
+    public function show(Church $church): JsonResponse
     {
-        return $this->json($this->churchToArray($church, true));
+        return $this->json($this->toArray($church, true));
     }
 
-    #[Route('/{id}/update', name: 'church_update', methods: ['POST'])]
-    public function update(Request $request, Church $church): Response
+    #[Route('/{id}/update', name: 'church_update', methods: ['PUT'])]
+    public function update(Request $request, Church $church): JsonResponse
     {
-        $church->setName($request->request->get('name', $church->getName()));
-        $church->setPhone($request->request->get('phone', $church->getPhone()));
-        $church->setMembersLimit((int)$request->request->get('members_limit', $church->getMembersLimit()));
+        $data = json_decode($request->getContent(), true) ?? $request->request->all();
+        
+        if (isset($data['name'])) $church->setName($data['name']);
+        if (isset($data['phone'])) $church->setPhone($data['phone']);
+        if (isset($data['members_limit'])) $church->setMembersLimit((int)$data['members_limit']);
+        if (isset($data['internal_code'])) $church->setInternalCode($data['internal_code']);
+        if (isset($data['document_type'])) $church->setDocumentType($data['document_type']);
+        if (isset($data['document_number'])) $church->setDocumentNumber($data['document_number']);
 
-        $church->setAddressStreet($request->request->get('address_street', $church->getAddressStreet()));
-        $church->setAddressNumber($request->request->get('address_number', $church->getAddressNumber()));
-        $church->setAddressComplement($request->request->get('address_complement', $church->getAddressComplement()));
-        $church->setCity($request->request->get('city', $church->getCity()));
-        $church->setState($request->request->get('state', $church->getState()));
-        $church->setCep($request->request->get('cep', $church->getCep()));
-        $church->setWebsite($request->request->get('website', $church->getWebsite()));
+        if (isset($data['address_street'])) $church->setAddressStreet($data['address_street']);
+        if (isset($data['address_number'])) $church->setAddressNumber($data['address_number']);
+        if (isset($data['address_complement'])) $church->setAddressComplement($data['address_complement']);
+        if (isset($data['city'])) $church->setCity($data['city']);
+        if (isset($data['state'])) $church->setState($data['state']);
+        if (isset($data['cep'])) $church->setCep($data['cep']);
+        if (isset($data['website'])) $church->setWebsite($data['website']);
 
         $this->validator->validate($church);
         $this->em->flush();
 
-        return $this->json(['status' => 'ok']);
+        return $this->json(['message' => 'Igreja atualizada']);
     }
 
     #[Route('/{id}/delete', name: 'church_delete', methods: ['DELETE'])]
-    public function delete(Church $church): Response
+    public function delete(Church $church): JsonResponse
     {
         $this->em->remove($church);
         $this->em->flush();
 
-        return $this->json(['status' => 'deleted']);
+        return $this->json(['message' => 'Igreja deletada']);
     }
 
     #[Route('/', name: 'church_list', methods: ['GET'])]
-    public function list(): Response
+    public function list(): JsonResponse
     {
         $churches = $this->em->getRepository(Church::class)->findAll();
-
-        $result = array_map(fn(Church $c) => $this->churchToArray($c), $churches);
-
+        $result = array_map(fn(Church $c) => $this->toArray($c), $churches);
         return $this->json($result);
     }
 
     #[Route('/{id}/members', name: 'church_members', methods: ['GET'])]
-    public function members(Church $church): Response
+    public function members(Church $church): JsonResponse
     {
-        $members = $this->em->getRepository(Church::class)->findMembersByChurch($church->getId());
+        $members = $church->getMembers();
 
-        if (empty($members)) {
-            return $this->json([]);
-        }
-        $churchEntity = $members[0];
-
-        $membersArray = $churchEntity->getMembers()->map(fn($member) => [
+        $membersArray = $members->map(fn($member) => [
             'id' => $member->getId(),
             'name' => $member->getName(),
             'document_type' => $member->getDocumentType(),
@@ -107,9 +108,26 @@ class ChurchController extends AbstractController
             'email' => $member->getEmail(),
             'phone' => $member->getPhone(),
             'birth_date' => $member->getBirthDate()?->format('Y-m-d'),
+            'address' => $this->formatAddress(
+                $member->getAddressStreet(),
+                $member->getAddressNumber(),
+                $member->getAddressComplement(),
+                $member->getCity(),
+                $member->getState(),
+                $member->getCep()
+            ),
+            'created_at' => $member->getCreatedAt()?->format('Y-m-d H:i:s'),
+            'updated_at' => $member->getUpdatedAt()?->format('Y-m-d H:i:s'),
         ])->toArray();
 
-        return $this->json($membersArray);
+        return $this->json([
+            'church' => [
+                'id' => $church->getId(),
+                'name' => $church->getName(),
+                'members_limit' => $church->getMembersLimit()
+            ],
+            'members' => $membersArray
+        ]);
     }
 
     private function formatAddress(?string $street, ?string $number, ?string $complement, ?string $city, ?string $state, ?string $cep): ?string
@@ -129,7 +147,7 @@ class ChurchController extends AbstractController
         return implode(', ', $parts);
     }
 
-    private function churchToArray(Church $church, bool $withMembers = false): array
+    private function toArray(Church $church, bool $withMembers = false): array
     {
         $data = [
             'id' => $church->getId(),

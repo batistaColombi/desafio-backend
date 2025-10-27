@@ -8,7 +8,7 @@ use App\Services\Validator\MemberValidator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Annotation\Route;
 
 #[Route('/member')]
@@ -19,30 +19,33 @@ class MemberController extends AbstractController
     }
 
     #[Route('/create', name: 'member_create', methods: ['POST'])]
-    public function create(Request $request): Response
+    public function create(Request $request): JsonResponse
     {
-        $member = new Member();
-        $member->setName($request->request->get('name'));
-        $member->setDocumentType($request->request->get('document_type'));
-        $member->setDocumentNumber($request->request->get('document_number'));
-        $member->setEmail($request->request->get('email'));
-        $member->setPhone($request->request->get('phone'));
+        $data = json_decode($request->getContent(), true) ?? $request->request->all();
         
-        $birthDate = $request->request->get('birth_date');
-        if ($birthDate) {
-            $member->setBirthDate(new \DateTime($birthDate));
+        $member = new Member();
+        $member->setName($data['name'] ?? null);
+        $member->setDocumentType($data['document_type'] ?? null);
+        $member->setDocumentNumber($data['document_number'] ?? null);
+        $member->setEmail($data['email'] ?? null);
+        $member->setPhone($data['phone'] ?? null);
+        
+        if ($data['birth_date'] ?? null) {
+            $member->setBirthDate(new \DateTime($data['birth_date']));
         }
         
-        $member->setAddressStreet($request->request->get('address_street'));
-        $member->setAddressNumber($request->request->get('address_number'));
-        $member->setAddressComplement($request->request->get('address_complement'));
-        $member->setCity($request->request->get('city'));
-        $member->setState($request->request->get('state'));
-        $member->setCep($request->request->get('cep'));
+        $member->setAddressStreet($data['address_street'] ?? null);
+        $member->setAddressNumber($data['address_number'] ?? null);
+        $member->setAddressComplement($data['address_complement'] ?? null);
+        $member->setCity($data['city'] ?? null);
+        $member->setState($data['state'] ?? null);
+        $member->setCep($data['cep'] ?? null);
 
-        $churchId = $request->request->get('church_id');
-        if ($churchId) {
-            $church = $this->em->getRepository(Church::class)->find($churchId);
+        if ($data['church_id'] ?? null) {
+            $church = $this->em->getRepository(Church::class)->find($data['church_id']);
+            if (!$church) {
+                return $this->json(['error' => 'Igreja não encontrada'], 404);
+            }
             $member->setChurch($church);
         }
 
@@ -50,60 +53,76 @@ class MemberController extends AbstractController
         $this->em->persist($member);
         $this->em->flush();
 
-        return $this->json(['status' => 'ok', 'id' => $member->getId()]);
+        return $this->json(['id' => $member->getId(), 'message' => 'Membro criado'], 201);
     }
 
     #[Route('/{id}', name: 'member_show', methods: ['GET'])]
-    public function show(Member $member): Response
+    public function show(Member $member): JsonResponse
     {
-        return $this->json($this->memberToArray($member));
+        return $this->json($this->toArray($member));
     }
 
     #[Route('/{id}', name: 'member_update', methods: ['PUT'])]
-    public function update(Request $request, Member $member): Response
+    public function update(Request $request, Member $member): JsonResponse
     {
-        $member->setName($request->request->get('name', $member->getName()));
-        $member->setEmail($request->request->get('email', $member->getEmail()));
-        $member->setDocumentType($request->request->get('document_type', $member->getDocumentType()));
-        $member->setDocumentNumber($request->request->get('document_number', $member->getDocumentNumber()));
-        $member->setPhone($request->request->get('phone', $member->getPhone()));
+        $data = json_decode($request->getContent(), true) ?? $request->request->all();
         
-        $birthDate = $request->request->get('birth_date');
-        if ($birthDate) {
-            $member->setBirthDate(new \DateTime($birthDate));
+        if (isset($data['name'])) $member->setName($data['name']);
+        if (isset($data['email'])) $member->setEmail($data['email']);
+        if (isset($data['document_type'])) $member->setDocumentType($data['document_type']);
+        if (isset($data['document_number'])) $member->setDocumentNumber($data['document_number']);
+        if (isset($data['phone'])) $member->setPhone($data['phone']);
+        
+        if (isset($data['birth_date'])) {
+            $member->setBirthDate(new \DateTime($data['birth_date']));
         }
         
-        $member->setAddressStreet($request->request->get('address_street', $member->getAddressStreet()));
-        $member->setAddressNumber($request->request->get('address_number', $member->getAddressNumber()));
-        $member->setAddressComplement($request->request->get('address_complement', $member->getAddressComplement()));
-        $member->setCity($request->request->get('city', $member->getCity()));
-        $member->setState($request->request->get('state', $member->getState()));
-        $member->setCep($request->request->get('cep', $member->getCep()));
+        if (isset($data['address_street'])) $member->setAddressStreet($data['address_street']);
+        if (isset($data['address_number'])) $member->setAddressNumber($data['address_number']);
+        if (isset($data['address_complement'])) $member->setAddressComplement($data['address_complement']);
+        if (isset($data['city'])) $member->setCity($data['city']);
+        if (isset($data['state'])) $member->setState($data['state']);
+        if (isset($data['cep'])) $member->setCep($data['cep']);
 
-        $churchId = $request->request->get('church_id');
-        $church = $churchId ? $this->em->getRepository(Church::class)->find($churchId) : $member->getChurch();
-        $member->setChurch($church);
+        if (isset($data['church_id'])) {
+            $church = $this->em->getRepository(Church::class)->find($data['church_id']);
+            if (!$church) {
+                return $this->json(['error' => 'Igreja não encontrada'], 404);
+            }
+            $member->setChurch($church);
+        }
 
         $this->validator->validate($member);
         $this->em->flush();
 
-        return $this->json(['status' => 'ok']);
+        return $this->json(['message' => 'Membro atualizado']);
     }
 
     #[Route('/{id}/delete', name: 'member_delete', methods: ['DELETE'])]
-    public function delete(Member $member): Response
+    public function delete(Member $member): JsonResponse
     {
         $this->em->remove($member);
         $this->em->flush();
 
-        return $this->json(['status' => 'deleted']);
+        return $this->json(['message' => 'Membro deletado']);
     }
 
     #[Route('/', name: 'member_list', methods: ['GET'])]
-    public function list(): Response
+    public function list(Request $request): JsonResponse
     {
-        $members = $this->em->getRepository(Member::class)->findAll();
-        $result = array_map(fn(Member $m) => $this->memberToArray($m), $members);
+        $churchId = $request->query->get('church_id');
+        
+        $qb = $this->em->getRepository(Member::class)->createQueryBuilder('m');
+        
+        if ($churchId) {
+            $qb->andWhere('m.church = :churchId')->setParameter('churchId', $churchId);
+        }
+        
+        $qb->orderBy('m.name', 'ASC');
+        
+        $members = $qb->getQuery()->getResult();
+        $result = array_map(fn(Member $m) => $this->toArray($m), $members);
+        
         return $this->json($result);
     }
 
@@ -124,7 +143,7 @@ class MemberController extends AbstractController
         return implode(', ', $parts);
     }
 
-    private function memberToArray(Member $member): array
+    private function toArray(Member $member): array
     {
         return [
             'id' => $member->getId(),
