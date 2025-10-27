@@ -4,6 +4,9 @@ namespace App\Controller;
 
 use App\Entity\Church;
 use App\Services\Validator\ChurchValidator;
+use App\DTO\CreateChurchDTO;
+use App\DTO\UpdateChurchDTO;
+use App\Service\ChurchDTOService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -11,11 +14,17 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\Routing\Annotation\Route;
 use OpenApi\Attributes as OA;
+use Knp\Component\Pager\PaginatorInterface;
 
 #[Route('/church')]
 class ChurchController extends AbstractController
 {
-    public function __construct(private EntityManagerInterface $em, private ChurchValidator $validator)
+    public function __construct(
+        private EntityManagerInterface $em, 
+        private ChurchValidator $validator,
+        private PaginatorInterface $paginator,
+        private ChurchDTOService $dtoService
+    )
     {
     }
 
@@ -72,27 +81,27 @@ class ChurchController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? $request->request->all();
         
-        $church = new Church();
-        $church->setName($data['name'] ?? null);
-        $church->setDocumentType($data['document_type'] ?? null);
-        $church->setDocumentNumber($data['document_number'] ?? null);
-        $church->setInternalCode($data['internal_code'] ?? null);
-        $church->setPhone($data['phone'] ?? null);
-        $church->setAddressStreet($data['address_street'] ?? null);
-        $church->setAddressNumber($data['address_number'] ?? null);
-        $church->setAddressComplement($data['address_complement'] ?? null);
-        $church->setCity($data['city'] ?? null);
-        $church->setState($data['state'] ?? null);
-        $church->setCep($data['cep'] ?? null);
-        $church->setWebsite($data['website'] ?? null);
-        $church->setMembersLimit(isset($data['members_limit']) ? (int)$data['members_limit'] : null);
+        $createDTO = CreateChurchDTO::fromArray($data);
+        $validationErrors = $this->dtoService->validateDTO($createDTO);
+        
+        if (!empty($validationErrors)) {
+            return $this->json(['errors' => $validationErrors], 400);
+        }
+
+        $church = $this->dtoService->createChurchFromDTO($createDTO);
 
         $this->validator->validate($church);
 
         $this->em->persist($church);
         $this->em->flush();
 
-        return $this->json(['id' => $church->getId(), 'message' => 'Igreja criada'], 201);
+        $responseDTO = $this->dtoService->toChurchDTO($church);
+        
+        return $this->json([
+            'id' => $church->getId(), 
+            'message' => 'Igreja criada',
+            'data' => $responseDTO->toArray()
+        ], 201);
     }
 
     #[Route('/{id}', name: 'church_show', methods: ['GET'])]
@@ -142,7 +151,8 @@ class ChurchController extends AbstractController
     )]
     public function show(Church $church): JsonResponse
     {
-        return $this->json($this->toArray($church, true));
+        $responseDTO = $this->dtoService->toChurchDTO($church);
+        return $this->json($responseDTO->toArray());
     }
 
     #[Route('/{id}/update', name: 'church_update', methods: ['PUT'])]
@@ -207,25 +217,29 @@ class ChurchController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? $request->request->all();
         
-        if (isset($data['name'])) $church->setName($data['name']);
-        if (isset($data['phone'])) $church->setPhone($data['phone']);
-        if (isset($data['members_limit'])) $church->setMembersLimit((int)$data['members_limit']);
-        if (isset($data['internal_code'])) $church->setInternalCode($data['internal_code']);
-        if (isset($data['document_type'])) $church->setDocumentType($data['document_type']);
-        if (isset($data['document_number'])) $church->setDocumentNumber($data['document_number']);
+        $updateDTO = UpdateChurchDTO::fromArray($data);
+        $validationErrors = $this->dtoService->validateDTO($updateDTO);
+        
+        if (!empty($validationErrors)) {
+            return $this->json(['errors' => $validationErrors], 400);
+        }
 
-        if (isset($data['address_street'])) $church->setAddressStreet($data['address_street']);
-        if (isset($data['address_number'])) $church->setAddressNumber($data['address_number']);
-        if (isset($data['address_complement'])) $church->setAddressComplement($data['address_complement']);
-        if (isset($data['city'])) $church->setCity($data['city']);
-        if (isset($data['state'])) $church->setState($data['state']);
-        if (isset($data['cep'])) $church->setCep($data['cep']);
-        if (isset($data['website'])) $church->setWebsite($data['website']);
+        if (!$updateDTO->hasUpdates()) {
+            return $this->json(['message' => 'Nenhuma atualização fornecida'], 400);
+        }
+
+        $this->dtoService->updateChurchFromDTO($church, $updateDTO);
 
         $this->validator->validate($church);
+        
         $this->em->flush();
 
-        return $this->json(['message' => 'Igreja atualizada']);
+        $responseDTO = $this->dtoService->toChurchDTO($church);
+        
+        return $this->json([
+            'message' => 'Igreja atualizada',
+            'data' => $responseDTO->toArray()
+        ]);
     }
 
     #[Route('/{id}/delete', name: 'church_delete', methods: ['DELETE'])]
@@ -285,37 +299,91 @@ class ChurchController extends AbstractController
     #[OA\Get(
         path: "/church/",
         summary: "Listar igrejas",
-        description: "Retorna lista de todas as igrejas cadastradas",
+        description: "Lista paginada de todas as igrejas cadastradas",
+        parameters: [
+            new OA\Parameter(
+                name: "page",
+                in: "query",
+                description: "Número da página",
+                required: false,
+                schema: new OA\Schema(type: "integer", example: 1, default: 1)
+            ),
+            new OA\Parameter(
+                name: "limit",
+                in: "query",
+                description: "Número de itens por página",
+                required: false,
+                schema: new OA\Schema(type: "integer", example: 10, default: 10)
+            )
+        ],
         responses: [
             new OA\Response(
                 response: 200,
-                description: "Lista de igrejas",
+                description: "Lista paginada de igrejas",
                 content: new OA\JsonContent(
-                    type: "array",
-                    items: new OA\Items(
-                        properties: [
-                            new OA\Property(property: "id", type: "integer", example: 1),
-                            new OA\Property(property: "name", type: "string", example: "Igreja Central"),
-                            new OA\Property(property: "document_type", type: "string", example: "CNPJ"),
-                            new OA\Property(property: "document_number", type: "string", example: "11222333000181"),
-                            new OA\Property(property: "internal_code", type: "string", example: "IC001"),
-                            new OA\Property(property: "phone", type: "string", example: "(11) 99999-1111"),
-                            new OA\Property(property: "members_limit", type: "integer", example: 100),
-                            new OA\Property(property: "current_members_count", type: "integer", example: 5),
-                            new OA\Property(property: "created_at", type: "string", format: "date-time"),
-                            new OA\Property(property: "updated_at", type: "string", format: "date-time")
-                        ]
-                    )
+                    properties: [
+                        new OA\Property(
+                            property: "data",
+                            type: "array",
+                            items: new OA\Items(
+                                properties: [
+                                    new OA\Property(property: "id", type: "integer", example: 1),
+                                    new OA\Property(property: "name", type: "string", example: "Igreja Central"),
+                                    new OA\Property(property: "document_type", type: "string", example: "CNPJ"),
+                                    new OA\Property(property: "document_number", type: "string", example: "11222333000181"),
+                                    new OA\Property(property: "internal_code", type: "string", example: "IC001"),
+                                    new OA\Property(property: "phone", type: "string", example: "(11) 99999-1111"),
+                                    new OA\Property(property: "members_limit", type: "integer", example: 100),
+                                    new OA\Property(property: "current_members_count", type: "integer", example: 5),
+                                    new OA\Property(property: "created_at", type: "string", format: "date-time"),
+                                    new OA\Property(property: "updated_at", type: "string", format: "date-time")
+                                ]
+                            )
+                        ),
+                        new OA\Property(property: "pagination", type: "object", properties: [
+                            new OA\Property(property: "current_page", type: "integer", example: 1),
+                            new OA\Property(property: "total_pages", type: "integer", example: 3),
+                            new OA\Property(property: "total_items", type: "integer", example: 25),
+                            new OA\Property(property: "items_per_page", type: "integer", example: 10),
+                            new OA\Property(property: "has_next", type: "boolean", example: true),
+                            new OA\Property(property: "has_previous", type: "boolean", example: false)
+                        ])
+                    ]
                 )
             )
         ],
         tags: ["Igrejas"]
     )]
-    public function list(): JsonResponse
+    public function list(Request $request): JsonResponse
     {
-        $churches = $this->em->getRepository(Church::class)->findAll();
-        $result = array_map(fn(Church $c) => $this->toArray($c), $churches);
-        return $this->json($result);
+        $page = (int) $request->query->get('page', 1);
+        $limit = (int) $request->query->get('limit', 10);
+        
+        $query = $this->em->getRepository(Church::class)->createQueryBuilder('c')
+            ->orderBy('c.created_at', 'DESC')
+            ->getQuery();
+        
+        $pagination = $this->paginator->paginate(
+            $query,
+            $page,
+            $limit
+        );
+        
+        $churchesData = array_map(fn(Church $c) => $this->dtoService->toChurchListDTO($c)->toArray(), $pagination->getItems());
+        
+        $response = [
+            'data' => $churchesData,
+            'pagination' => [
+                'current_page' => $pagination->getCurrentPageNumber(),
+                'total_pages' => $pagination->getPageCount(),
+                'total_items' => $pagination->getTotalItemCount(),
+                'items_per_page' => $pagination->getItemNumberPerPage(),
+                'has_next' => $pagination->getCurrentPageNumber() < $pagination->getPageCount(),
+                'has_previous' => $pagination->getCurrentPageNumber() > 1
+            ]
+        ];
+        
+        return $this->json($response);
     }
 
     #[Route('/{id}/members', name: 'church_members', methods: ['GET'])]
