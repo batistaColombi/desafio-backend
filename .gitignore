@@ -20,3 +20,6 @@
 ###< symfony/asset-mapper ###
 
 # Ignore IDE specific files
+###> lexik/jwt-authentication-bundle ###
+/config/jwt/*.pem
+###< lexik/jwt-authentication-bundle ###
