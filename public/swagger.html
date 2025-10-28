@@ -24,117 +24,10 @@
         .swagger-ui .topbar .download-url-wrapper {
             display: none;
         }
-        .auth-container {
-            background: #f8f9fa;
-            padding: 20px;
-            margin: 20px;
-            border-radius: 8px;
-            border-left: 4px solid #007bff;
-        }
-        .auth-steps {
-            background: white;
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .step {
-            margin: 10px 0;
-            padding: 10px;
-            background: #e9ecef;
-            border-radius: 5px;
-        }
-        .step-number {
-            background: #007bff;
-            color: white;
-            border-radius: 50%;
-            width: 25px;
-            height: 25px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 10px;
-            font-weight: bold;
-        }
-        .token-example {
-            background: #f8f9fa;
-            padding: 10px;
-            border-radius: 5px;
-            font-family: monospace;
-            word-break: break-all;
-            border: 1px solid #dee2e6;
-        }
-        .warning {
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            color: #856404;
-            padding: 10px;
-            border-radius: 5px;
-            margin: 10px 0;
-        }
     </style>
 </head>
 <body>
     <div id="swagger-ui"></div>
-    
-    <div class="auth-container">
-        <h2>🔐 Como usar a autenticação JWT no Swagger</h2>
-        
-        <div class="auth-steps">
-            <h3>📋 Passos para autenticação:</h3>
-            
-            <div class="step">
-                <span class="step-number">1</span>
-                <strong>Registrar Administrador:</strong> Use o endpoint <code>POST /admin/register</code> para criar um admin
-            </div>
-            
-            <div class="step">
-                <span class="step-number">2</span>
-                <strong>Fazer Login:</strong> Use o endpoint <code>POST /admin/login</code> com username e password
-            </div>
-            
-            <div class="step">
-                <span class="step-number">3</span>
-                <strong>Copiar Token:</strong> Copie o token JWT retornado na resposta
-            </div>
-            
-            <div class="step">
-                <span class="step-number">4</span>
-                <strong>Autorizar:</strong> Clique no botão <strong>"Authorize"</strong> 🔒 no topo da página
-            </div>
-            
-            <div class="step">
-                <span class="step-number">5</span>
-                <strong>Colar Token:</strong> Cole o token no campo "Value" e clique em "Authorize"
-            </div>
-            
-            <div class="step">
-                <span class="step-number">6</span>
-                <strong>Testar:</strong> Agora você pode testar todos os endpoints protegidos
-            </div>
-        </div>
-        
-        <div class="warning">
-            <strong>⚠️ Importante:</strong> O token JWT expira em 1 hora. Se receber erro 401, faça login novamente.
-        </div>
-        
-        <div class="auth-steps">
-            <h3>🔑 Exemplo de Token:</h3>
-            <div class="token-example">
-                eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJpYXQiOjE3NjE1OTU4NDksImV4cCI6MTc2MTU5OTQ0OSwicm9sZXMiOlsiUk9MRV9BRE1JTiIsIlJPTEVfVVNFUiJdLCJ1c2VybmFtZSI6ImFkbWluIn0...
-            </div>
-        </div>
-        
-        <div class="auth-steps">
-            <h3>📊 Endpoints Protegidos:</h3>
-            <ul>
-                <li><strong>Igrejas:</strong> Todos os endpoints (create, update, delete, list)</li>
-                <li><strong>Membros:</strong> Todos os endpoints incluindo soft-delete e restore</li>
-                <li><strong>Transferências:</strong> Todos os endpoints de transferência</li>
-                <li><strong>Admin:</strong> Listagem de admins e logs de auditoria</li>
-            </ul>
-        </div>
-    </div>
 
     <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-bundle.js"></script>
     <script src="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui-standalone-preset.js"></script>
@@ -152,17 +45,7 @@
                     SwaggerUIBundle.plugins.DownloadUrl
                 ],
                 layout: "StandaloneLayout",
-                tryItOutEnabled: true,
-                requestInterceptor: function(request) {
-                    // Log das requisições para debug
-                    console.log('Request:', request);
-                    return request;
-                },
-                responseInterceptor: function(response) {
-                    // Log das respostas para debug
-                    console.log('Response:', response);
-                    return response;
-                }
+                tryItOutEnabled: true
             });
             
             window.ui = ui;

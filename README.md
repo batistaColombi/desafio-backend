@@ -37,7 +37,8 @@ Sistema completo para gerenciamento de igrejas, membros e transferências entre 
 ### Pré-requisitos
 - PHP 8.2+
 - Composer
-- MySQL/PostgreSQL
+- Docker
+- PostgreSQL (via Docker ou local)
 - Symfony CLI (opcional)
 
 ### 1. Clone o repositório
@@ -46,32 +47,34 @@ git clone <repository-url>
 cd desafio-backend
 ```
 
-### 2. Instale as dependências
+### 2. Suba os containers e instale as dependências
+**IMPORTANTE**: O arquivo `.env` está incluído no repositório para facilitar a configuração inicial, mas **você deve ajustar as credenciais do banco de dados** conforme seu ambiente.
 ```bash
+docker compose up -d
+
 composer install
 ```
 
-### 3. Configure o banco de dados
+### 3. Configure o projeto
 
 **IMPORTANTE**: O arquivo `.env` está incluído no repositório para facilitar a configuração inicial, mas **você deve ajustar as credenciais do banco de dados** conforme seu ambiente.
 
+**Opção 1 - Docker (Recomendado):**
+Siga as instruções na seção "Banco de Dados com Docker" abaixo.
+
+**Opção 2 - PostgreSQL Local:**
 Edite o arquivo `.env` e configure:
 ```env
 # Database
-DATABASE_URL="mysql://usuario:senha@127.0.0.1:3306/nome_do_banco?serverVersion=8.0.32&charset=utf8mb4"
+DATABASE_URL="postgresql://usuario:senha@127.0.0.1:5432/nome_do_banco?serverVersion=15&charset=utf8"
 ```
 
-### 4. Crie o banco de dados
-```bash
-php bin/console doctrine:database:create
-```
-
-### 5. Execute as migrações
+### 4. Execute as migrações
 ```bash
 php bin/console doctrine:migrations:migrate
 ```
 
-### 6. Inicie o servidor
+### 5. Inicie o servidor
 ```bash
 symfony server:start
 # ou
@@ -87,7 +90,7 @@ http://localhost:8000/swagger.html
 ```
 
 ### Autenticação
-Todos os endpoints (exceto login) requerem autenticação JWT:
+Todos os endpoints (exceto login, para facilitar testes) requerem autenticação JWT:
 
 1. **Registrar admin**:
 ```bash
@@ -107,68 +110,12 @@ curl -X POST "http://localhost:8000/admin/login" \
 ```bash
 curl -H "Authorization: Bearer SEU_TOKEN" "http://localhost:8000/church/"
 ```
+  Copiar Token: Copie o token JWT retornado na resposta;
+  Autorizar: Clique no botão "Authorize" no topo da página;
+  Colar Token: Cole o token no campo "Value" e clique em "Authorize";
+  Testar: Agora você pode testar todos os endpoints protegidos.
 
-### Endpoints Principais
-
-#### Administração
-- `POST /admin/register` - Registrar administrador
-- `POST /admin/login` - Fazer login
-- `GET /admin/` - Listar administradores
-- `GET /admin/audit-logs` - Logs de auditoria
-
-#### Igrejas
-- `POST /church/create` - Criar igreja (formulário)
-- `GET /church/` - Listar igrejas (paginado + busca)
-- `GET /church/{id}` - Visualizar igreja
-- `PUT /church/{id}/update` - Atualizar igreja (formulário + JSON)
-- `DELETE /church/{id}/delete` - Deletar igreja
-- `GET /church/{id}/members` - Membros da igreja (paginado)
-
-#### Membros
-- `POST /member/create` - Criar membro (formulário)
-- `GET /member/` - Listar membros (filtros + busca)
-- `GET /member/{id}` - Visualizar membro
-- `PUT /member/{id}` - Atualizar membro (formulário + JSON)
-- `DELETE /member/{id}/delete` - Soft-delete membro
-- `POST /member/{id}/restore` - Restaurar membro
-
-#### Transferências
-- `POST /member-transfer/create` - Criar transferência (formulário)
-- `GET /member-transfer/` - Listar transferências (filtros + busca)
-- `GET /member-transfer/{id}` - Visualizar transferência
-- `PUT /member-transfer/{id}/update` - Atualizar transferência (formulário + JSON)
-- `DELETE /member-transfer/{id}/delete` - Deletar transferência
-- `GET /member-transfer/member/{id}/history` - Histórico do membro
-
-## Testando a API
-
-### Exemplos de Uso
-
-#### 1. Criar uma igreja
-```bash
-curl -X POST "http://localhost:8000/church/create" \
-  -H "Authorization: Bearer SEU_TOKEN" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "name=Igreja Central&document_type=CNPJ&document_number=11222333000181&internal_code=IC001&phone=(11) 99999-1111&address_street=Rua das Flores&address_number=123&city=São Paulo&state=SP&cep=01234-567&website=https://igrejacentral.com&members_limit=100"
-```
-
-#### 2. Criar um membro
-```bash
-curl -X POST "http://localhost:8000/member/create" \
-  -H "Authorization: Bearer SEU_TOKEN" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "name=João Silva&document_type=CPF&document_number=11144477735&email=joao@email.com&phone=(11) 99999-3333&birth_date=1990-05-15&address_street=Rua das Palmeiras&address_number=456&city=São Paulo&state=SP&cep=01234-567&church_id=1"
-```
-
-#### 3. Listar igrejas com busca
-```bash
-curl -H "Authorization: Bearer SEU_TOKEN" "http://localhost:8000/church/?search=Central"
-```
-
-#### 4. Listar membros com filtro
-```bash
-curl -H "Authorization: Bearer SEU_TOKEN" "http://localhost:8000/member/?church_id=1&search=João"
-```
+  Importante: O token JWT expira em 1 hora. Se receber erro 401, faça login novamente.
 
 ### Estrutura de Resposta Padrão
 
@@ -196,54 +143,6 @@ Todas as listagens seguem o padrão:
 - **Paginação**: KnpPaginatorBundle
 - **Autenticação**: JWT (LexikJWTAuthenticationBundle)
 - **Arquitetura**: DTOs + Services + Controllers
-
-## Estrutura do Projeto
-
-```
-src/
-├── Controller/          # Controllers da API
-│   ├── AdminController.php
-│   ├── ChurchController.php
-│   ├── MemberController.php
-│   └── MemberTransferController.php
-├── Entity/             # Entidades Doctrine
-│   ├── Admin.php
-│   ├── AuditLog.php
-│   ├── Church.php
-│   ├── Member.php
-│   ├── MemberTransfer.php
-│   └── Traits/
-│       └── SoftDeleteableTrait.php
-├── DTO/                # Data Transfer Objects
-│   ├── ChurchDTO.php
-│   ├── CreateChurchDTO.php
-│   ├── UpdateChurchDTO.php
-│   ├── ChurchListDTO.php
-│   ├── MemberDTO.php
-│   ├── CreateMemberDTO.php
-│   ├── UpdateMemberDTO.php
-│   ├── MemberListDTO.php
-│   ├── MemberTransferDTO.php
-│   ├── CreateMemberTransferDTO.php
-│   ├── UpdateMemberTransferDTO.php
-│   └── MemberTransferListDTO.php
-├── Service/            # Serviços de negócio
-│   ├── AuditService.php
-│   ├── ChurchDTOService.php
-│   ├── MemberDTOService.php
-│   ├── MemberTransferDTOService.php
-│   └── SoftDeleteService.php
-├── Validator/          # Validadores customizados
-│   ├── ChurchValidator.php
-│   ├── MemberValidator.php
-│   └── MemberTransferValidator.php
-└── Repository/         # Repositórios Doctrine
-    ├── AdminRepository.php
-    ├── AuditLogRepository.php
-    ├── ChurchRepository.php
-    ├── MemberRepository.php
-    └── MemberTransferRepository.php
-```
 
 ## Validações Implementadas
 
@@ -279,37 +178,6 @@ src/
 - **DTOs**: Separação clara entre dados de transferência e entidades
 - **Validação em camadas**: DTOs + Validadores de negócio
 - **Ordenação**: Listagens ordenadas por ID crescente
-
-## Troubleshooting
-
-### Problemas Comuns
-
-1. **Erro de conexão com banco**
-   - Verifique as credenciais no `.env`
-   - Confirme se o banco existe
-   - Execute `php bin/console doctrine:database:create`
-
-2. **Erro de autenticação**
-   - Verifique se o token JWT é válido
-   - Confirme se o usuário está ativo
-   - Teste o login novamente
-
-3. **Erro de validação**
-   - Verifique se os documentos são válidos
-   - Confirme se os IDs existem
-   - Verifique se os emails são únicos por igreja
-
-4. **Swagger não carrega**
-   - Acesse `http://localhost:8000/swagger.html`
-   - Verifique se o servidor está rodando
-
-## Suporte
-
-Para dúvidas ou problemas:
-1. Verifique a documentação do Swagger
-2. Consulte os logs em `var/log/`
-3. Teste os endpoints com curl ou Postman
-4. Verifique os logs de auditoria em `/admin/audit-logs`
 
 ---
 
